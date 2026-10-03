@@ -7,6 +7,7 @@ const SOURCE_LABEL: Record<DispenseLog['dispensedBy'], string> = {
   scheduled_auto: 'Auto Scheduled',
   app_trigger: 'In-App Dispense',
   hardware_button: 'Physical Button',
+  manual_override: 'Safety Override',
 };
 
 export function History() {

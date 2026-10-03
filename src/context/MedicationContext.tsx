@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ChamberConfig, MedicationSchedule, DispenseLog } from '../types';
+import { ChamberConfig, MedicationSchedule, DispenseLog, ActiveIngredient, DispenseSafetyEvaluation } from '../types';
 import { storageService } from '../services/storageService';
 import { useHardware } from './HardwareContext';
+import { medicationSafetyService } from '../services/medicationSafetyService';
+import { findBestMatch } from '../data/medicationDatabase';
 
 interface MedicationContextType {
   chambers: ChamberConfig[];
@@ -12,7 +14,22 @@ interface MedicationContextType {
   addSchedule: (schedule: Omit<MedicationSchedule, 'id'>) => void;
   updateSchedule: (id: string, changes: Partial<MedicationSchedule>) => void;
   deleteSchedule: (id: string) => void;
-  dispenseNow: (chamberId: 1 | 2 | 3 | 4, reason?: 'scheduled_auto' | 'app_trigger' | 'hardware_button') => Promise<{ success: boolean; message: string }>;
+  dispenseNow: (
+    chamberId: 1 | 2 | 3 | 4,
+    reason?: 'scheduled_auto' | 'app_trigger' | 'hardware_button' | 'manual_override',
+    bypassSafety?: boolean
+  ) => Promise<{ success: boolean; message: string; safetyEvaluation?: DispenseSafetyEvaluation }>;
+  applyPrescriptionScan: (data: {
+    slotId: 1 | 2 | 3 | 4;
+    medicationName: string;
+    pillStrength: string;
+    activeIngredients: ActiveIngredient[];
+    maxDailyDoses: number;
+    dosage: string;
+    times: string[];
+    instructions: string;
+    prescribedBy: string;
+  }) => void;
   calculateAdherenceRate: () => number;
 }
 
@@ -72,14 +89,27 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const dispenseNow = async (
     chamberId: 1 | 2 | 3 | 4,
-    reason: 'scheduled_auto' | 'app_trigger' | 'hardware_button' = 'app_trigger'
-  ) => {
+    reason: 'scheduled_auto' | 'app_trigger' | 'hardware_button' | 'manual_override' = 'app_trigger',
+    bypassSafety = false
+  ): Promise<{ success: boolean; message: string; safetyEvaluation?: DispenseSafetyEvaluation }> => {
     const chamber = chambers.find(c => c.servoId === chamberId);
     if (!chamber) {
       return { success: false, message: 'Invalid chamber ID requested' };
     }
     if (chamber.currentCount <= 0) {
-      return { success: false, message: `Chamber ${chamberId} (${chamber.medicationName}) is empty! Refill required.` };
+      return { success: false, message: `Chamber ${chamberId} (${chamber.medicationName || 'Slot ' + chamberId}) is empty! Refill required.` };
+    }
+
+    // Pre-dispense safety check
+    if (!bypassSafety) {
+      const evaluation = medicationSafetyService.validateDispenseSafety(chamberId, chambers, logs);
+      if (!evaluation.safeToDispense) {
+        return {
+          success: false,
+          message: evaluation.blockReason || evaluation.warnings[0] || 'Safety limits exceeded',
+          safetyEvaluation: evaluation,
+        };
+      }
     }
 
     // Call hardware servo
@@ -101,20 +131,92 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         })
       );
 
-      // Record log
+      // Record log with active ingredients for cumulative safety tracking
+      const matched = findBestMatch(chamber.medicationName);
+      const ingredients = chamber.activeIngredients || matched?.activeIngredients || [];
+
       const newLog = storageService.addLog({
         timestamp: new Date().toISOString(),
         chamberId,
         medicationName: chamber.medicationName,
         status: 'success',
         dispensedBy: reason,
-        notes: `Dispensed 1 pill from Servo #${chamberId}`
+        notes: `Dispensed 1 pill from Servo #${chamberId}`,
+        activeIngredients: ingredients,
+        pillsDispensed: 1,
       });
 
       setLogs(prev => [newLog, ...prev]);
     }
 
     return result;
+  };
+
+  const applyPrescriptionScan = (data: {
+    slotId: 1 | 2 | 3 | 4;
+    medicationName: string;
+    pillStrength: string;
+    activeIngredients: ActiveIngredient[];
+    maxDailyDoses: number;
+    dosage: string;
+    times: string[];
+    instructions: string;
+    prescribedBy: string;
+  }) => {
+    // 1. Update chamber config
+    setChambers(prev =>
+      prev.map(c => {
+        if (c.servoId === data.slotId) {
+          return {
+            ...c,
+            medicationName: data.medicationName,
+            pillStrength: data.pillStrength,
+            activeIngredients: data.activeIngredients,
+            maxDailyDoses: data.maxDailyDoses,
+            currentCount: c.currentCount > 0 ? c.currentCount : 20,
+            status: 'ready' as const,
+          };
+        }
+        return c;
+      })
+    );
+
+    // 2. Add or update schedule routine
+    setSchedules(prev => {
+      const existing = prev.find(s => s.chamberId === data.slotId);
+      if (existing) {
+        return prev.map(s =>
+          s.id === existing.id
+            ? {
+                ...s,
+                medicationName: data.medicationName,
+                dosage: data.dosage,
+                times: data.times,
+                instructions: data.instructions,
+                prescribedBy: data.prescribedBy,
+                activeIngredients: data.activeIngredients,
+                maxDailyDoses: data.maxDailyDoses,
+              }
+            : s
+        );
+      } else {
+        const newSch: MedicationSchedule = {
+          id: `sch-${Date.now()}`,
+          chamberId: data.slotId,
+          medicationName: data.medicationName,
+          dosage: data.dosage,
+          times: data.times,
+          instructions: data.instructions,
+          prescribedBy: data.prescribedBy,
+          active: true,
+          shape: 'capsule',
+          pillColor: '#007aff',
+          activeIngredients: data.activeIngredients,
+          maxDailyDoses: data.maxDailyDoses,
+        };
+        return [...prev, newSch];
+      }
+    });
   };
 
   const calculateAdherenceRate = (): number => {
@@ -135,6 +237,7 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updateSchedule,
         deleteSchedule,
         dispenseNow,
+        applyPrescriptionScan,
         calculateAdherenceRate
       }}
     >

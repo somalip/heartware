@@ -11,6 +11,25 @@ export interface UserProfile {
   };
 }
 
+export interface ActiveIngredient {
+  name: string; // e.g. "Acetaminophen", "Ibuprofen"
+  amountMg: number; // e.g. 325, 500
+}
+
+export interface MedicationReference {
+  id: string;
+  brandName: string;
+  genericName: string;
+  category: 'analgesic' | 'nsaid' | 'cold_flu' | 'allergy' | 'antibiotic' | 'cardiovascular' | 'diabetes' | 'other';
+  defaultStrength: string;
+  unit: 'tablet' | 'capsule' | 'caplet' | 'liquicap' | 'ml';
+  activeIngredients: ActiveIngredient[];
+  maxDailyUnits: number;
+  minDoseIntervalHours: number;
+  warnings: string[];
+  description: string;
+}
+
 export interface ChamberConfig {
   servoId: 1 | 2 | 3 | 4;
   medicationName: string;
@@ -22,6 +41,10 @@ export interface ChamberConfig {
   colorTag: string;
   status: 'ready' | 'low' | 'empty' | 'jammed' | 'dispensing';
   slotLabel: string;
+  medicationId?: string;
+  activeIngredients?: ActiveIngredient[];
+  maxDailyDoses?: number; // Automatic daily pill limit
+  warningNote?: string;
 }
 
 export interface MedicationSchedule {
@@ -35,6 +58,8 @@ export interface MedicationSchedule {
   active: boolean;
   shape: 'round' | 'capsule' | 'oval';
   pillColor: string;
+  activeIngredients?: ActiveIngredient[];
+  maxDailyDoses?: number;
 }
 
 export interface DispenseLog {
@@ -43,8 +68,55 @@ export interface DispenseLog {
   chamberId: 1 | 2 | 3 | 4;
   medicationName: string;
   status: 'success' | 'missed' | 'manual_override' | 'jammed';
-  dispensedBy: 'scheduled_auto' | 'app_trigger' | 'hardware_button';
+  dispensedBy: 'scheduled_auto' | 'app_trigger' | 'hardware_button' | 'manual_override';
   notes?: string;
+  activeIngredients?: ActiveIngredient[];
+  pillsDispensed?: number;
+}
+
+export interface CrossIntakeConflict {
+  ingredientName: string;
+  chambersInvolved: {
+    servoId: 1 | 2 | 3 | 4;
+    medicationName: string;
+    amountMg: number;
+  }[];
+  severity: 'high' | 'medium';
+  message: string;
+  safeLimitMg: number;
+}
+
+export interface IngredientIntakeProgress {
+  ingredientName: string;
+  takenTodayMg: number;
+  maxDailyMg: number;
+  percent: number;
+  status: 'safe' | 'warning' | 'exceeded';
+  slotsContributing: {
+    servoId: 1 | 2 | 3 | 4;
+    medicationName: string;
+    amountMg: number;
+    doseCount: number;
+  }[];
+}
+
+export interface DispenseSafetyEvaluation {
+  safeToDispense: boolean;
+  hardBlocked: boolean;
+  warnings: string[];
+  blockReason?: string;
+  exceededIngredient?: {
+    name: string;
+    currentMg: number;
+    wouldBeMg: number;
+    maxMg: number;
+  };
+  recentDoseIntervalViolation?: {
+    ingredientName: string;
+    lastTakenMinutesAgo: number;
+    minIntervalHours: number;
+    medicationName: string;
+  };
 }
 
 export interface HardwareState {

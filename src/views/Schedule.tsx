@@ -4,15 +4,17 @@ import { useToast } from '../context/ToastContext';
 import { useAlert } from '../context/AlertContext';
 import { ChamberConfig } from '../types';
 import { IosSheet } from '../components/IosSheet';
+import { PrescriptionScannerModal } from '../components/PrescriptionScannerModal';
 import { triggerHaptic } from '../utils/haptics';
 
 type SlotId = ChamberConfig['servoId'];
 
 export function Schedule() {
-  const { schedules, chambers, deleteSchedule, dispenseNow } = useMedication();
+  const { schedules, chambers, deleteSchedule, dispenseNow, applyPrescriptionScan } = useMedication();
   const { showToast } = useToast();
   const { showConfirm } = useAlert();
   const [showAddSheet, setShowAddSheet] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   const nameFor = (id: SlotId, fallback: string) =>
     chambers.find((c) => c.servoId === id)?.medicationName ?? fallback;
@@ -22,7 +24,7 @@ export function Schedule() {
   const handleManualDispense = async (chamberId: SlotId) => {
     triggerHaptic('medium');
     const res = await dispenseNow(chamberId, 'app_trigger');
-    showToast(res.message);
+    showToast(res.message, res.success ? 'success' : 'warning');
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -45,29 +47,47 @@ export function Schedule() {
       <div className="ios-large-title-block" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 className="ios-large-title">Schedule</h1>
-          <p className="ios-subtitle">Dosing Timetable</p>
+          <p className="ios-subtitle">Dosing Timetable & Regimens</p>
         </div>
-        <button
-          className="ios-add-button"
-          onClick={() => {
-            triggerHaptic('light');
-            setShowAddSheet(true);
-          }}
-          title="Add Routine"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            className="ios-scan-header-btn"
+            onClick={() => {
+              triggerHaptic('light');
+              setShowScanner(true);
+            }}
+            title="Scan Prescription Label"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            <span>Scan Rx</span>
+          </button>
+
+          <button
+            className="ios-add-button"
+            onClick={() => {
+              triggerHaptic('light');
+              setShowAddSheet(true);
+            }}
+            title="Add Routine"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="ios-section">
-        <div className="ios-section-header">Active Regimens</div>
+        <div className="ios-section-header">Active Regimens & Limits</div>
         {sorted.length === 0 ? (
           <div className="ios-list">
             <div className="ios-row" style={{ color: 'var(--ios-secondary)' }}>
-              No dosing routines scheduled. Tap + to add one.
+              No dosing routines scheduled. Tap + or Scan Rx to add one.
             </div>
           </div>
         ) : (
@@ -75,16 +95,29 @@ export function Schedule() {
             {sorted.map((s) => {
               const medName = nameFor(s.chamberId, s.medicationName);
               const chamber = chambers.find((c) => c.servoId === s.chamberId);
+              const dailyLimit = s.maxDailyDoses || chamber?.maxDailyDoses;
+              const ingredients = s.activeIngredients || chamber?.activeIngredients;
+
               return (
                 <div key={s.id} className="ios-row">
                   <div className="ios-row-content">
-                    <div className="ios-row-title">
-                      {medName}
+                    <div className="ios-row-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>{medName}</span>
+                      {dailyLimit && (
+                        <span className="ios-badge" style={{ backgroundColor: 'var(--ios-fill)', color: 'var(--ios-secondary)', fontSize: '11px' }}>
+                          Max {dailyLimit}/day
+                        </span>
+                      )}
                     </div>
                     <div className="ios-row-sublabel">
                       {s.dosage} · Slot {s.chamberId} {chamber ? `(${chamber.currentCount} left)` : ''}
                       {s.instructions ? ` · ${s.instructions}` : ''}
                     </div>
+                    {ingredients && ingredients.length > 0 && (
+                      <div style={{ fontSize: '12px', color: 'var(--ios-secondary)', marginTop: '2px' }}>
+                        Active: {ingredients.map((i) => `${i.name} ${i.amountMg}mg`).join(', ')}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, marginLeft: 'auto' }}>
@@ -111,7 +144,7 @@ export function Schedule() {
           </div>
         )}
         <div className="ios-section-footer">
-          Scheduled doses trigger the corresponding servo at scheduled minutes with an audible buzzer alert and IR confirmation.
+          Scheduled routines automatically comply with daily maximum active ingredient limits.
         </div>
       </div>
 
@@ -119,6 +152,17 @@ export function Schedule() {
         <AddScheduleSheet
           chambers={chambers}
           onClose={() => setShowAddSheet(false)}
+        />
+      )}
+
+      {showScanner && (
+        <PrescriptionScannerModal
+          chambers={chambers}
+          onApply={(data) => {
+            applyPrescriptionScan(data);
+            showToast(`Prescription for ${data.medicationName} added to timetable`, 'success');
+          }}
+          onClose={() => setShowScanner(false)}
         />
       )}
     </>
@@ -141,6 +185,7 @@ function AddScheduleSheet({
   const [dosage, setDosage] = useState('1 tablet');
   const [instructions, setInstructions] = useState('');
 
+  const targetChamber = chambers.find((c) => c.servoId === chamberId);
   const nameFor = (id: SlotId) =>
     chambers.find((c) => c.servoId === id)?.medicationName ?? `Slot ${id}`;
 
@@ -156,6 +201,8 @@ function AddScheduleSheet({
       active: true,
       shape: 'round',
       pillColor: '#111',
+      activeIngredients: targetChamber?.activeIngredients,
+      maxDailyDoses: targetChamber?.maxDailyDoses,
     });
     showToast('New routine added to schedule', 'success');
     onClose();
@@ -188,6 +235,18 @@ function AddScheduleSheet({
                 ))}
               </select>
             </div>
+
+            {targetChamber?.maxDailyDoses && (
+              <div className="ios-row">
+                <div className="ios-row-content">
+                  <div className="ios-row-label">Automatic Daily Safe Cap</div>
+                  <div className="ios-row-sublabel">
+                    {targetChamber.activeIngredients?.map((i) => `${i.name} ${i.amountMg}mg`).join(', ') || 'Monitored'}
+                  </div>
+                </div>
+                <span className="ios-badge green">Max {targetChamber.maxDailyDoses} doses/day</span>
+              </div>
+            )}
 
             <div className="ios-row">
               <div className="ios-detail-label">Dosage</div>
