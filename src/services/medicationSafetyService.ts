@@ -76,6 +76,11 @@ export const medicationSafetyService = {
     chambers: ChamberConfig[],
     hoursWindow = 24
   ): IngredientIntakeProgress[] {
+    const configuredChambers = chambers.filter((c) => c.medicationName.trim().length > 0);
+    if (configuredChambers.length === 0) {
+      return [];
+    }
+
     const cutoff = Date.now() - hoursWindow * 60 * 60 * 1000;
     const recentLogs = logs.filter(
       (l) => l.status === 'success' && new Date(l.timestamp).getTime() >= cutoff
@@ -93,8 +98,10 @@ export const medicationSafetyService = {
     > = {};
 
     for (const log of recentLogs) {
-      const chamber = chambers.find((c) => c.servoId === log.chamberId);
-      let ingredients = log.activeIngredients || chamber?.activeIngredients;
+      const chamber = configuredChambers.find((c) => c.servoId === log.chamberId);
+      if (!chamber) continue;
+
+      let ingredients = log.activeIngredients || chamber.activeIngredients;
 
       if (!ingredients || ingredients.length === 0) {
         const match = findBestMatch(log.medicationName);

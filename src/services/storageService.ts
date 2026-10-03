@@ -31,15 +31,24 @@ export const INITIAL_SCHEDULES: MedicationSchedule[] = [];
 
 export const COMMUNITY_RESOURCES: CommunityResource[] = [];
 
-// Cleanse legacy dummy/mock data (e.g. Lisinopril, Metformin) from browser storage
+// Cleanse legacy dummy/mock data from browser storage so app starts fresh
 function sanitizeInitialStorage() {
   try {
     const rawChambers = localStorage.getItem(KEYS.CHAMBERS);
-    if (rawChambers && (rawChambers.includes('Lisinopril') || rawChambers.includes('Metformin'))) {
+    if (rawChambers && (rawChambers.includes('Lisinopril') || rawChambers.includes('Metformin') || rawChambers.includes('DayQuil') || rawChambers.includes('Tylenol'))) {
       localStorage.removeItem(KEYS.CHAMBERS);
+      localStorage.removeItem(KEYS.SCHEDULES);
+      localStorage.removeItem(KEYS.LOGS);
     }
     const rawSchedules = localStorage.getItem(KEYS.SCHEDULES);
-    if (rawSchedules && (rawSchedules.includes('Lisinopril') || rawSchedules.includes('Metformin'))) {
+    if (rawSchedules && (rawSchedules.includes('Lisinopril') || rawSchedules.includes('Metformin') || rawSchedules.includes('DayQuil') || rawSchedules.includes('Tylenol'))) {
+      localStorage.removeItem(KEYS.SCHEDULES);
+      localStorage.removeItem(KEYS.LOGS);
+    }
+    // If chambers are unassigned or empty, clear any orphan logs
+    const chambers = rawChambers ? JSON.parse(rawChambers) : null;
+    if (Array.isArray(chambers) && chambers.every((c: any) => !c.medicationName || !c.medicationName.trim())) {
+      localStorage.removeItem(KEYS.LOGS);
       localStorage.removeItem(KEYS.SCHEDULES);
     }
   } catch {
