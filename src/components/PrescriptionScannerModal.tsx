@@ -1031,9 +1031,8 @@ export const PrescriptionScannerModal: React.FC<Props> = ({
           <div style={{ padding: '0 16px 24px' }}>
             <button
               type="button"
-              className="ios-primary-button"
+              className="ios-btn-primary"
               onClick={handleApply}
-              style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '16px', fontWeight: 600 }}
             >
               Apply to Bottle {selectedSlot} & Schedule
             </button>

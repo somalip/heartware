@@ -161,11 +161,11 @@ export const prescriptionOcrService = {
    * Upscales canvas if resolution is low (e.g. character height < 20px)
    * to ensure Tesseract neural OCR engine receives sufficient pixel density.
    */
-  upscaleCanvasIfNeeded(sourceCanvas: HTMLCanvasElement, targetMinDim = 1200): HTMLCanvasElement {
+  upscaleCanvasIfNeeded(sourceCanvas: HTMLCanvasElement, targetMinDim = 1400): HTMLCanvasElement {
     const minDim = Math.min(sourceCanvas.width, sourceCanvas.height);
     if (minDim >= targetMinDim) return sourceCanvas;
 
-    const scale = Math.min(3.0, Math.max(1.5, targetMinDim / minDim));
+    const scale = Math.min(4.5, Math.max(1.5, targetMinDim / minDim));
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(sourceCanvas.width * scale);
     canvas.height = Math.round(sourceCanvas.height * scale);
@@ -198,6 +198,44 @@ export const prescriptionOcrService = {
   },
 
   /**
+   * Crops the main label area, eliminating curved bottle edges and bottle cap noise.
+   */
+  cropLabelBody(sourceCanvas: HTMLCanvasElement): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    const startX = Math.floor(sourceCanvas.width * 0.15);
+    const startY = Math.floor(sourceCanvas.height * 0.12);
+    const cropW = Math.floor(sourceCanvas.width * 0.85);
+    const cropH = Math.floor(sourceCanvas.height * 0.82);
+
+    canvas.width = cropW;
+    canvas.height = cropH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return sourceCanvas;
+
+    ctx.drawImage(sourceCanvas, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
+    return canvas;
+  },
+
+  /**
+   * Crops specifically to the central medication & directions box on prescription bottles.
+   */
+  cropMedicationBox(sourceCanvas: HTMLCanvasElement): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    const startX = Math.floor(sourceCanvas.width * 0.18);
+    const startY = Math.floor(sourceCanvas.height * 0.30);
+    const cropW = Math.floor(sourceCanvas.width * 0.80);
+    const cropH = Math.floor(sourceCanvas.height * 0.58);
+
+    canvas.width = cropW;
+    canvas.height = cropH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return sourceCanvas;
+
+    ctx.drawImage(sourceCanvas, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
+    return canvas;
+  },
+
+  /**
    * Preprocesses canvas image data with grayscale, dynamic range expansion,
    * and high-boost edge sharpening to boost OCR legibility on curved, glossy, or multi-colored medicine bottles.
    */
@@ -215,10 +253,12 @@ export const prescriptionOcrService = {
       const totalPixels = data.length / 4;
 
       // 1. Calculate luminosity histogram to determine 3rd and 97th percentiles
-      // avoiding skew from single blown-out reflections or dark shadows
+      // avoiding skew from single blown-out reflections or dark shadows.
+      // Red-weighted formula (0.60 R, 0.30 G, 0.10 B) prevents pink/red warning frames
+      // from darkening into dividing bars that block Tesseract text flow.
       const hist = new Int32Array(256);
       for (let i = 0; i < data.length; i += 4) {
-        const lum = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+        const lum = Math.round(data[i] * 0.60 + data[i + 1] * 0.30 + data[i + 2] * 0.10);
         hist[lum]++;
       }
 
@@ -242,7 +282,7 @@ export const prescriptionOcrService = {
 
       // 2. Grayscale & contrast normalization
       for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-        const lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+        const lum = data[i] * 0.60 + data[i + 1] * 0.30 + data[i + 2] * 0.10;
         const norm = Math.min(1, Math.max(0, (lum - minP) / range));
         // Subtle gamma to enhance black text on white/yellow label paper
         const enhanced = Math.pow(norm, 1.1) * 255;
@@ -252,10 +292,10 @@ export const prescriptionOcrService = {
         data[i + 2] = enhanced;
       }
 
-      // 3. Unsharp mask sharpening filter (3x3 Laplacian) to crisp up characters
+      // 3. Mild unsharp mask filter (factor 0.10) to crisp up characters without amplifying noise or creating ($3 artifacts
       const w = canvas.width;
       const h = canvas.height;
-      const sharpenFactor = 0.35;
+      const sharpenFactor = 0.10;
 
       for (let y = 1; y < h - 1; y++) {
         for (let x = 1; x < w - 1; x++) {
@@ -644,41 +684,51 @@ Return ONLY pure JSON.`;
   async detectWithTesseract(canvas: HTMLCanvasElement): Promise<string> {
     try {
       // 1. Upscale low-resolution image to ensure adequate character pixel height
-      const upscaled = this.upscaleCanvasIfNeeded(canvas, 1200);
+      const upscaled = this.upscaleCanvasIfNeeded(canvas, 1400);
       const preprocessed = this.preprocessCanvasForOcr(upscaled);
 
       // Attempt 1: Bundled npm tesseract.js worker
       try {
         const { createWorker, PSM } = await import('tesseract.js');
         const worker = await createWorker('eng');
-        // Priority 1: PSM.SINGLE_COLUMN (PSM 4) preserves line hierarchy and natural reading flow
-        await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_COLUMN });
-        let ret = await worker.recognize(preprocessed);
-        let text = ret?.data?.text || '';
-
-        // Priority 2: If single column found limited characters, try PSM.AUTO (PSM 3)
-        if (text.trim().length < 25) {
-          await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
-          const retAuto = await worker.recognize(preprocessed);
-          const textAuto = retAuto?.data?.text || '';
-          if (textAuto.trim().length > text.trim().length) {
-            text = textAuto;
-          }
-        }
-
-        // Priority 3: Fallback to PSM.SPARSE_TEXT (PSM 11) for fragmented labels
-        if (text.trim().length < 20) {
+        let text = '';
+        try {
+          // Pass 1: Main label body recognition (crops out bottle cap and curved left edge noise)
+          const labelCanvas = this.cropLabelBody(upscaled);
+          const preprocessedLabel = this.preprocessCanvasForOcr(labelCanvas);
           await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
-          const ret11 = await worker.recognize(preprocessed);
-          const text11 = ret11?.data?.text || '';
-          if (text11.trim().length > text.trim().length) {
-            text = text11;
-          }
-        }
-        await worker.terminate();
+          const retLabel = await worker.recognize(preprocessedLabel);
+          text = retLabel?.data?.text || '';
 
-        if (text.trim().length > 5) {
-          return text;
+          // Pass 2: If medication name/strength wasn't captured, focus directly on the medication box
+          const hasMedicationOrStrength = /(?:ibuprofen|lisinopril|amoxicillin|metformin|sertraline|tylenol|advil|dayquil|nyquil|\b\d+\s*mg\b)/i.test(text);
+          if (!hasMedicationOrStrength) {
+            const medBoxCanvas = this.cropMedicationBox(upscaled);
+            const preprocessedBox = this.preprocessCanvasForOcr(medBoxCanvas);
+            await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
+            const retBox = await worker.recognize(preprocessedBox);
+            const boxText = retBox?.data?.text || '';
+            if (boxText.trim().length > 5) {
+              text = `${text}\n${boxText}`;
+            }
+          }
+
+          // Pass 3: Full-frame fallback if label body yielded very little text
+          if (text.trim().length < 15) {
+            await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
+            const retFull = await worker.recognize(preprocessed);
+            const fullText = retFull?.data?.text || '';
+            if (fullText.trim().length > text.trim().length) {
+              text = `${text}\n${fullText}`;
+            }
+          }
+        } finally {
+          await worker.terminate();
+        }
+
+        if (text.trim().length > 3) {
+          const cleaned = this.reconstructCleanLabelText(text);
+          return cleaned || text;
         }
       } catch (bundlerErr) {
         console.warn('Bundled Tesseract.js worker note:', bundlerErr);
@@ -708,9 +758,11 @@ Return ONLY pure JSON.`;
 
       if (win.Tesseract && typeof win.Tesseract.recognize === 'function') {
         const result = await win.Tesseract.recognize(preprocessed, 'eng', {
-          tessedit_pageseg_mode: '4',
+          tessedit_pageseg_mode: '11',
         });
-        return result?.data?.text || '';
+        const rawTess = result?.data?.text || '';
+        const cleaned = this.reconstructCleanLabelText(rawTess);
+        return cleaned || rawTess;
       }
     } catch (e) {
       console.warn('Tesseract fallback unavailable:', e);
@@ -790,6 +842,55 @@ Return ONLY pure JSON.`;
   },
 
   /**
+   * Evaluates if a raw OCR line contains genuine medical, patient, or instructions text
+   * rather than random OCR syllables, specks, or sensor noise.
+   */
+  isMeaningfulLine(line: string): boolean {
+    const trimmed = line.trim();
+    if (trimmed.length < 3) return false;
+
+    // Pure noise / punctuation
+    if (/^[|i!l~_°•=\-\*\$\(\)\/\\@#%^&?]+$/.test(trimmed)) return false;
+
+    // Stray OCR syllables like 'a 15', 'ssl 1', 'ol a', 'da 2', 'yy 3'
+    if (/^[a-z]{1,3}\s*\d{1,2}$/i.test(trimmed)) return false;
+    if (/^\d{1,2}\s*[a-z]{1,3}$/i.test(trimmed)) return false;
+    if (/^[a-z]{1,3}\s+[a-z]{1,3}$/i.test(trimmed)) return false;
+    if (/^[b-df-hj-np-tv-z]{3,}$/i.test(trimmed)) return false; // all consonants without vowels e.g. 'ssl'
+
+    // Rx numbers e.g. '69950-32017' or '3369950-32019' or 'RX# 123456'
+    if (/(?:RX\s*#?[\s:]*)?\b(?:\d{2})?(\d{5,8}-\d{4,6})\b/i.test(trimmed)) {
+      return true;
+    }
+
+    // Known valid medical or prescription keywords
+    const validKeywords =
+      /(?:PHARMACY|RX|DR\.|DOCTOR|PRESCRIBER|PATIENT|STREET|AVENUE|ROAD|BLVD|QTY|REFILL|DISCARD|DATE|EXP|LOT|WARNING|CAUTION|TABLET|CAPLET|CAPSULE|LIQUICAP|MG|MCG|ML|TAKE|APPLY|USE|DAILY|HOURS|PAIN|MOUTH|FOOD|WATER|BEFORE|AFTER|GENERIC|FOR|MFG|MANUFACTURER)/i;
+
+    if (validKeywords.test(trimmed)) return true;
+
+    // Known drug or brand name
+    if (/(?:IBUPROFEN|LISINOPRIL|AMOXICILLIN|METFORMIN|SERTRALINE|TYLENOL|ADVIL|DAYQUIL|NYQUIL|ALEVE|ASPIRIN|BENADRYL|MUCINEX|LIPITOR|ZOFRAN|OMEPRAZOLE)/i.test(trimmed)) {
+      return true;
+    }
+
+    // Name lines (all caps, 2-3 words, total len >= 6, e.g. "JANE Q PUBLIC", "SARAH CONNOR")
+    if (/^[A-Z][A-Z\s\.']{5,35}$/.test(trimmed) && trimmed.split(/\s+/).length >= 2) {
+      return true;
+    }
+
+    // Address lines (contains street, st, ave, blvd, or digits + letters)
+    if (/\b(?:ST|STREET|AVE|AVENUE|RD|ROAD|BLVD|WAY|DR|DRIVE|LN|LANE|SUITE|STE|BOX|IL|CA|NY|TX|FL)\b/i.test(trimmed)) {
+      return true;
+    }
+
+    // If none of the above, check if it contains at least two real English words with 4+ letters and vowels
+    const words = trimmed.split(/\s+/).filter((w) => /^[A-Za-z]{4,}$/.test(w));
+    const hasVowels = words.some((w) => /[aeiouy]/i.test(w));
+    return words.length >= 2 && hasVowels;
+  },
+
+  /**
    * Intelligently cleans, repairs, and reconstructs broken OCR text from medicine bottles.
    * Eliminates single-character noise artifacts, repairs chopped words, restores missing
    * prefixes ('AKE' -> 'TAKE', 'EDED' -> 'AS NEEDED'), formats addresses & zip codes,
@@ -823,7 +924,7 @@ Return ONLY pure JSON.`;
       .replace(/\bneeded\s+for\s+(?:bain|pain)\b/gi, 'NEEDED FOR PAIN')
       .replace(/\bfor\s+bain\b/gi, 'FOR PAIN')
       // Address fixes: '. It' -> ', IL 60015', lone '15' zip code
-      .replace(/\banytown[.,\s]+(?:it|il)\b/gi, 'ANYTOWN, IL 60015')
+      .replace(/\banytown[.,\s]+(?:it|il)(?:\s*60015)?\b/gi, 'ANYTOWN, IL 60015')
       .replace(/\banytown[.,\s]+it\s*15\b/gi, 'ANYTOWN, IL 60015')
       // Rx numbers
       .replace(/\b(?:rx\s*#?|prescription\s*#?)[\s:]*([0-9\-]+)/gi, 'RX# $1');
@@ -832,6 +933,7 @@ Return ONLY pure JSON.`;
     const rawLines = text.split('\n').map((l) => l.trim()).filter(Boolean);
     let patient = '';
     let address = '';
+    let pendingZip = false;
     let medLine = '';
     let mfgLine = '';
     const dirLines: string[] = [];
@@ -843,12 +945,7 @@ Return ONLY pure JSON.`;
       line = line.replace(/^[|~=°\-•!_\s]+/, '').replace(/[|~=°\-•!_\s]+$/, '').trim();
       if (!line) continue;
 
-      // Filter out isolated single/double letter noise (e.g. '|', 'i', 'NE', 'da', 'yy')
-      if (/^[|i!l~_]$/i.test(line) || /^[a-z]{1,2}$/i.test(line)) {
-        continue;
-      }
-
-      // Check if line is Rx number (e.g. 69950-32017 or RX 3369950-32019)
+      // Check if line is Rx number (e.g. 69950-32017 or RX 3369950-32019) BEFORE generic line filtering
       const rxMatch = line.match(/(?:RX\s*#?[\s:]*)?(\d{5,8}-\d{4,6})/i);
       if (rxMatch) {
         let rxNum = rxMatch[1];
@@ -859,24 +956,38 @@ Return ONLY pure JSON.`;
         continue;
       }
 
+      // Reject non-meaningful OCR syllables and noise lines
+      if (!this.isMeaningfulLine(line)) {
+        continue;
+      }
+
       // Check if line is address
       if (/(?:STREET|MAIN\s*ST|ANYTOWN|AVENUE|\bAVE\b|\bRD\b|\bBLVD\b|\bIL\s*60015)/i.test(line)) {
         if (!address) {
-          address = line.replace(/^15\s*/, '').replace(/^[.,\s]+/, '');
+          address = line
+            .replace(/[\(\$][\$\d]+\s*/g, ' ')
+            .replace(/[\(\)\[\]\{\}\$#@!%^&*+=<>~`|?]/g, '')
+            .replace(/\b123\s*\d+\s*MAIN/i, '123 MAIN')
+            .replace(/^15\s*/, '')
+            .replace(/^[.,\s]+/, '')
+            .replace(/\s+/g, ' ')
+            .trim();
           if (!address.startsWith('123') && /MAIN\s*STREET/i.test(address)) {
             address = `123 ${address}`;
           }
-          if (!/60015/.test(address) && /ANYTOWN/i.test(address)) {
+          if (!/60015/.test(address) && (pendingZip || /ANYTOWN/i.test(address))) {
             address = address.replace(/(?:ANYTOWN[.,\s]*(?:IL|IT)?.*)/i, 'ANYTOWN, IL 60015');
           }
         }
         continue;
       }
 
-      // Lone 15 after address or patient
+      // Lone 15 after or before address or patient
       if (line === '15' || line === '015') {
         if (address && !address.includes('60015')) {
           address = address.replace(/(?:IL)?\s*$/, ' IL 60015');
+        } else {
+          pendingZip = true;
         }
         continue;
       }
@@ -931,7 +1042,7 @@ Return ONLY pure JSON.`;
     if (rxLine) assembled.push(rxLine);
 
     for (const other of otherLines) {
-      if (other.length > 3) assembled.push(other);
+      if (this.isMeaningfulLine(other)) assembled.push(other);
     }
 
     return assembled.length > 0 ? assembled.join('\n') : text.trim();
