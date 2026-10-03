@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { HardwareProvider } from './context/HardwareContext';
+import { HardwareProvider, useHardware } from './context/HardwareContext';
 import { MedicationProvider, useMedication } from './context/MedicationContext';
 import { ToastProvider } from './context/ToastContext';
 import { AlertProvider } from './context/AlertContext';
@@ -103,6 +103,7 @@ function Shell() {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('dispenser');
   const { schedules, chambers } = useMedication();
+  const { state: hwState } = useHardware();
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -138,44 +139,111 @@ function Shell() {
   };
 
   return (
-    <>
-      {/* Notch & Dynamic Island Upper Edge Background Fill */}
-      <div className="ios-status-fill" />
-
-      {/* iOS Translucent Collapsing Navigation Bar */}
-      <header className={`ios-nav-header ${isScrolled ? 'scrolled' : ''}`}>
-        <div className="ios-nav-content">
-          <div className="ios-nav-title">{currentTabTitle}</div>
+    <div className="app-shell">
+      {/* Desktop Sidebar Navigation (Visible >= 840px) */}
+      <aside className="desktop-sidebar" aria-label="Desktop Navigation">
+        <div className="desktop-sidebar-header">
+          <div className="desktop-sidebar-brand">
+            <h2 className="desktop-sidebar-title">Heartware Dashboard</h2>
+          </div>
         </div>
-      </header>
 
-      {/* Main Screen Container with iOS Safe-Area Padding */}
-      <main className="ios-screen" key={tab}>
-        {tab === 'dispenser' && <Dispenser />}
-        {tab === 'schedule' && <Schedule />}
-        {tab === 'care' && <Care goToAccount={() => handleTabSelect('account')} />}
-        {tab === 'history' && <History />}
-        {tab === 'account' && <Account />}
-      </main>
+        {/* Live Hardware Status Pill */}
+        <div className="desktop-hardware-badge">
+          <span
+            className={`desktop-status-dot ${
+              hwState.connected
+                ? hwState.connectionType === 'ble'
+                  ? 'active'
+                  : 'simulated'
+                : 'offline'
+            }`}
+          />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {hwState.connected
+              ? hwState.connectionType === 'ble'
+                ? 'ESP32 (BLE Active)'
+                : 'Virtual ESP32'
+              : 'Disconnected'}
+          </span>
+          {hwState.connected && (
+            <span style={{ marginLeft: 'auto', color: 'var(--ios-secondary)', fontSize: '11px', flexShrink: 0 }}>
+              {hwState.batteryLevel}%
+            </span>
+          )}
+        </div>
 
-      {/* iOS Frosted Bottom Tab Bar */}
-      <nav className="ios-tab-bar" aria-label="Main Navigation">
-        {TABS.map(([id, label]) => {
-          const isActive = tab === id;
-          return (
-            <button
-              key={id}
-              className={`ios-tab-item ${isActive ? 'active' : ''}`}
-              onClick={() => handleTabSelect(id)}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <TabIcon tab={id} active={isActive} />
-              <span className="ios-tab-label">{label}</span>
-            </button>
-          );
-        })}
-      </nav>
-    </>
+        {/* Sidebar Nav Buttons */}
+        <nav className="desktop-sidebar-nav" aria-label="Desktop Primary">
+          {TABS.map(([id, label]) => {
+            const isActive = tab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`desktop-nav-item ${isActive ? 'active' : ''}`}
+                onClick={() => handleTabSelect(id)}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <TabIcon tab={id} active={isActive} />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* User Profile Footer */}
+        <div className="desktop-user-card">
+          <div className="desktop-user-avatar">
+            {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
+          </div>
+          <div className="desktop-user-info">
+            <div className="desktop-user-name">{user?.name || user?.email || 'User'}</div>
+            <div className="desktop-user-role">{user?.role || 'Patient'} Mode</div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main App Content Viewport */}
+      <div className="app-main-content">
+        {/* Notch & Dynamic Island Upper Edge Background Fill (Mobile) */}
+        <div className="ios-status-fill" />
+
+        {/* iOS Translucent Collapsing Navigation Bar (Mobile) */}
+        <header className={`ios-nav-header ${isScrolled ? 'scrolled' : ''}`}>
+          <div className="ios-nav-content">
+            <div className="ios-nav-title">{currentTabTitle}</div>
+          </div>
+        </header>
+
+        {/* Main Screen Container with iOS Safe-Area Padding */}
+        <main className="ios-screen" key={tab}>
+          {tab === 'dispenser' && <Dispenser />}
+          {tab === 'schedule' && <Schedule />}
+          {tab === 'care' && <Care goToAccount={() => handleTabSelect('account')} />}
+          {tab === 'history' && <History />}
+          {tab === 'account' && <Account />}
+        </main>
+
+        {/* iOS Frosted Bottom Tab Bar (Mobile) */}
+        <nav className="ios-tab-bar" aria-label="Main Navigation">
+          {TABS.map(([id, label]) => {
+            const isActive = tab === id;
+            return (
+              <button
+                key={id}
+                className={`ios-tab-item ${isActive ? 'active' : ''}`}
+                onClick={() => handleTabSelect(id)}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <TabIcon tab={id} active={isActive} />
+                <span className="ios-tab-label">{label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
   );
 }
 

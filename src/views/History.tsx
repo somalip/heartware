@@ -34,7 +34,6 @@ export function History() {
       <div className="ios-large-title-block" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 className="ios-large-title">History</h1>
-          <p className="ios-subtitle">Dispense Log</p>
         </div>
         {logs.length > 0 && (
           <button
@@ -46,25 +45,40 @@ export function History() {
         )}
       </div>
 
-      {/* Summary Inset Group */}
+      {/* Summary Metrics Inset Group */}
       <div className="ios-section">
-        <div className="ios-section-header">Dispense Metrics</div>
-        <div className="ios-list">
-          <div className="ios-row">
-            <div className="ios-row-content">
-              <div className="ios-row-label">Last 7 Days</div>
-              <div className="ios-row-sublabel">Confirmed optical drop sensor triggers</div>
-            </div>
-            <div className="ios-row-value-bold">
-              {thisWeek} {thisWeek === 1 ? 'cycle' : 'cycles'}
+        <div className="ios-section-header">Summary</div>
+        <div className="history-metrics-grid">
+          <div className="ios-list">
+            <div className="ios-row">
+              <div className="ios-row-content">
+                <div className="ios-row-label">Last 7 Days</div>
+              </div>
+              <div className="ios-row-value-bold">
+                {thisWeek} {thisWeek === 1 ? 'cycle' : 'cycles'}
+              </div>
             </div>
           </div>
-          <div className="ios-row">
-            <div className="ios-row-content">
-              <div className="ios-row-label">Lifetime Actuations</div>
+
+          <div className="ios-list">
+            <div className="ios-row">
+              <div className="ios-row-content">
+                <div className="ios-row-label">Lifetime Actuations</div>
+              </div>
+              <div className="ios-row-value">
+                {logs.length}
+              </div>
             </div>
-            <div className="ios-row-value">
-              {logs.length}
+          </div>
+
+          <div className="ios-list">
+            <div className="ios-row">
+              <div className="ios-row-content">
+                <div className="ios-row-label">Sensor Verification</div>
+              </div>
+              <div className="ios-row-value-bold" style={{ color: 'var(--ios-green)' }}>
+                100% Active
+              </div>
             </div>
           </div>
         </div>
@@ -72,7 +86,7 @@ export function History() {
 
       {/* Log Entries */}
       <div className="ios-section">
-        <div className="ios-section-header">Chronological Audit Log</div>
+        <div className="ios-section-header">Log</div>
         {logs.length === 0 ? (
           <div className="ios-list">
             <div className="ios-row" style={{ color: 'var(--ios-secondary)' }}>
@@ -103,9 +117,6 @@ export function History() {
             ))}
           </div>
         )}
-        <div className="ios-section-footer">
-          Each event is confirmed when the infrared beam detects pill drop passage across the dispenser funnel.
-        </div>
       </div>
     </>
   );

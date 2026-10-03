@@ -47,7 +47,6 @@ export function Schedule() {
       <div className="ios-large-title-block" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 className="ios-large-title">Schedule</h1>
-          <p className="ios-subtitle">Dosing Timetable & Regimens</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
@@ -83,7 +82,7 @@ export function Schedule() {
       </div>
 
       <div className="ios-section">
-        <div className="ios-section-header">Active Regimens & Limits</div>
+        <div className="ios-section-header">Routines</div>
         {sorted.length === 0 ? (
           <div className="ios-list">
             <div className="ios-row" style={{ color: 'var(--ios-secondary)' }}>
@@ -91,7 +90,7 @@ export function Schedule() {
             </div>
           </div>
         ) : (
-          <div className="ios-list">
+          <div className="schedule-cards-grid">
             {sorted.map((s) => {
               const medName = nameFor(s.chamberId, s.medicationName);
               const chamber = chambers.find((c) => c.servoId === s.chamberId);
@@ -99,38 +98,43 @@ export function Schedule() {
               const ingredients = s.activeIngredients || chamber?.activeIngredients;
 
               return (
-                <div key={s.id} className="ios-row">
-                  <div className="ios-row-content">
-                    <div className="ios-row-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>{medName}</span>
-                      {dailyLimit && (
-                        <span className="ios-badge" style={{ backgroundColor: 'var(--ios-fill)', color: 'var(--ios-secondary)', fontSize: '11px' }}>
-                          Max {dailyLimit}/day
-                        </span>
+                <div key={s.id} className="ios-list" style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div className="ios-row" style={{ alignItems: 'flex-start', flex: 1 }}>
+                    <div className="ios-row-content">
+                      <div className="ios-row-title" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span>{medName}</span>
+                        {dailyLimit && (
+                          <span className="ios-badge" style={{ backgroundColor: 'var(--ios-fill)', color: 'var(--ios-secondary)', fontSize: '11px' }}>
+                            Max {dailyLimit}/day
+                          </span>
+                        )}
+                      </div>
+                      <div className="ios-row-sublabel" style={{ marginTop: '4px' }}>
+                        {s.dosage} · Bottle {s.chamberId} {chamber ? `(${chamber.currentCount} left)` : ''}
+                        {s.instructions ? ` · ${s.instructions}` : ''}
+                      </div>
+                      {ingredients && ingredients.length > 0 && (
+                        <div style={{ fontSize: '12px', color: 'var(--ios-secondary)', marginTop: '6px', lineHeight: 1.3 }}>
+                          Active: {ingredients.map((i) => `${i.name} ${i.amountMg}mg`).join(', ')}
+                        </div>
                       )}
                     </div>
-                    <div className="ios-row-sublabel">
-                      {s.dosage} · Bottle {s.chamberId} {chamber ? `(${chamber.currentCount} left)` : ''}
-                      {s.instructions ? ` · ${s.instructions}` : ''}
-                    </div>
-                    {ingredients && ingredients.length > 0 && (
-                      <div style={{ fontSize: '12px', color: 'var(--ios-secondary)', marginTop: '2px' }}>
-                        Active: {ingredients.map((i) => `${i.name} ${i.amountMg}mg`).join(', ')}
-                      </div>
-                    )}
-                  </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, marginLeft: 'auto' }}>
-                    <div className="ios-badge" style={{ backgroundColor: 'var(--ios-fill)', color: 'var(--ios-label)', fontWeight: 600 }}>
+                    <div className="ios-badge" style={{ backgroundColor: 'var(--ios-fill)', color: 'var(--ios-label)', fontWeight: 600, flexShrink: 0 }}>
                       {s.times.join(', ')}
                     </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', padding: '8px 16px 12px', borderTop: '0.5px solid var(--ios-separator)' }}>
                     <button
+                      type="button"
                       className="ios-nav-action"
                       onClick={() => handleManualDispense(s.chamberId)}
                     >
-                      Dispense
+                      Dispense Now
                     </button>
                     <button
+                      type="button"
                       className="ios-nav-action"
                       style={{ color: 'var(--ios-red)' }}
                       onClick={() => handleDelete(s.id, medName)}
@@ -143,9 +147,6 @@ export function Schedule() {
             })}
           </div>
         )}
-        <div className="ios-section-footer">
-          Scheduled routines automatically comply with daily maximum active ingredient limits.
-        </div>
       </div>
 
       {showAddSheet && (
@@ -295,7 +296,7 @@ function AddScheduleSheet({
         </div>
 
         <div className="ios-section">
-          <div className="ios-section-header">Notes & Instructions</div>
+          <div className="ios-section-header">Notes</div>
           <div className="ios-list">
             <div className="ios-row">
               <input

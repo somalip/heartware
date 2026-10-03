@@ -56,129 +56,124 @@ export function Care({ goToAccount }: { goToAccount: () => void }) {
     <>
       <div className="ios-large-title-block">
         <h1 className="ios-large-title">Care</h1>
-        <p className="ios-subtitle">Emergency & Support</p>
       </div>
 
-      {/* Emergency Immediate Action Group */}
-      <div className="ios-section">
-        <div className="ios-section-header">Emergency Response</div>
-        <div className="ios-list">
-          <div className="ios-row with-icon">
-            <div className="ios-icon-box" style={{ backgroundColor: 'var(--ios-red)' }}>
-              SOS
-            </div>
-            <div className="ios-row-content">
-              <div className="ios-row-title">Emergency 911</div>
-              <div className="ios-row-sublabel">Dispatch paramedics & critical response</div>
-            </div>
-            <a
-              href="tel:911"
-              className="ios-pill-btn red"
-              onClick={() => triggerHaptic('heavy')}
-            >
-              Call 911
-            </a>
-          </div>
-
-          <div className="ios-row with-icon">
-            <div className="ios-icon-box" style={{ backgroundColor: 'var(--ios-orange)' }}>
-              Rx
-            </div>
-            <div className="ios-row-content">
-              <div className="ios-row-title">
-                {emergencyChamber?.medicationName
-                  ? `Dispense Bottle 3 (${emergencyChamber.medicationName})`
-                  : 'Bottle 3 (Emergency PRN)'}
+      {/* Responsive Care Grid: 2 Columns on Desktop, Single Column on Mobile */}
+      <div className="care-desktop-grid">
+        {/* Emergency Immediate Action Group */}
+        <div className="ios-section">
+          <div className="ios-section-header">Emergency Response</div>
+          <div className="ios-list">
+            <div className="ios-row with-icon">
+              <div className="ios-icon-box" style={{ backgroundColor: 'var(--ios-red)' }}>
+                SOS
               </div>
-              <div className="ios-row-sublabel">
-                {emergencyChamber?.medicationName
-                  ? `${emergencyChamber.currentCount} pills remaining in reservoir`
-                  : 'Bottle not configured'}
+              <div className="ios-row-content">
+                <div className="ios-row-title">Emergency 911</div>
               </div>
-            </div>
-            <button
-              className="ios-pill-btn orange"
-              onClick={handleDispenseEmergency}
-              disabled={!emergencyChamber || !emergencyChamber.medicationName.trim() || emergencyChamber.currentCount === 0}
-            >
-              Dispense
-            </button>
-          </div>
-
-          <div className="ios-row with-icon">
-            <div className="ios-icon-box" style={{ backgroundColor: 'var(--ios-blue)' }}>
-              <PhoneIcon size={16} color="#fff" />
-            </div>
-            <div className="ios-row-content">
-              <div className="ios-row-title">
-                {contact?.name ? contact.name : 'Designated Caregiver'}
-              </div>
-              <div className="ios-row-sublabel">
-                {contact?.phone ? contact.phone : 'No emergency contact set'}
-              </div>
-            </div>
-            {contact?.phone ? (
               <a
-                href={`tel:${contact.phone}`}
-                className="ios-pill-btn green"
-                onClick={() => triggerHaptic('medium')}
+                href="tel:911"
+                className="ios-pill-btn red"
+                onClick={() => triggerHaptic('heavy')}
               >
-                Call
+                Call 911
               </a>
-            ) : (
-              <button
-                className="ios-pill-btn blue"
-                onClick={() => {
-                  triggerHaptic('light');
-                  goToAccount();
-                }}
-              >
-                Set Contact
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="ios-section-footer">
-          Chamber 4 is dedicated to emergency rapid-response medication (e.g. Aspirin, Nitroglycerin, Epi-aid).
-        </div>
-      </div>
-
-      {/* Community Mutual Aid Directory */}
-      <div className="ios-section">
-        <div className="ios-section-header">Healthcare & Refill</div>
-
-        {/* Animated Sliding Segmented Control */}
-        <IosSegmentedControl
-          options={FILTER_OPTIONS}
-          value={filter}
-          onChange={(newVal) => setFilter(newVal)}
-        />
-
-        <div className="ios-list">
-          {filteredResources.length === 0 ? (
-            <div className="ios-row" style={{ color: 'var(--ios-secondary)' }}>
-              No community healthcare resources listed.
             </div>
-          ) : (
-            filteredResources.map((r) => (
-              <div key={r.id} className="ios-row">
-                <div className="ios-row-content">
-                  <div className="ios-row-title">{r.title}</div>
-                  <div className="ios-row-sublabel">{r.address} · {r.hours}</div>
+
+            <div className="ios-row with-icon">
+              <div className="ios-icon-box" style={{ backgroundColor: 'var(--ios-orange)' }}>
+                Rx
+              </div>
+              <div className="ios-row-content">
+                <div className="ios-row-title">
+                  {emergencyChamber?.medicationName
+                    ? `Dispense Bottle 3 (${emergencyChamber.medicationName})`
+                    : 'Bottle 3 (Emergency PRN)'}
                 </div>
+                <div className="ios-row-sublabel">
+                  {emergencyChamber?.medicationName
+                    ? `${emergencyChamber.currentCount} pills remaining in reservoir`
+                    : 'Bottle not configured'}
+                </div>
+              </div>
+              <button
+                className="ios-pill-btn orange"
+                onClick={handleDispenseEmergency}
+                disabled={!emergencyChamber || !emergencyChamber.medicationName.trim() || emergencyChamber.currentCount === 0}
+              >
+                Dispense
+              </button>
+            </div>
+
+            <div className="ios-row with-icon">
+              <div className="ios-icon-box" style={{ backgroundColor: 'var(--ios-blue)' }}>
+                <PhoneIcon size={16} color="#fff" />
+              </div>
+              <div className="ios-row-content">
+                <div className="ios-row-title">
+                  {contact?.name ? contact.name : 'Designated Caregiver'}
+                </div>
+                <div className="ios-row-sublabel">
+                  {contact?.phone ? contact.phone : 'No emergency contact set'}
+                </div>
+              </div>
+              {contact?.phone ? (
                 <a
-                  href={`tel:${r.phone}`}
-                  className="ios-pill-btn blue"
-                  onClick={() => triggerHaptic('light')}
+                  href={`tel:${contact.phone}`}
+                  className="ios-pill-btn green"
+                  onClick={() => triggerHaptic('medium')}
                 >
                   Call
                 </a>
-              </div>
-            ))
-          )}
+              ) : (
+                <button
+                  className="ios-pill-btn blue"
+                  onClick={() => {
+                    triggerHaptic('light');
+                    goToAccount();
+                  }}
+                >
+                  Set Contact
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="ios-section-footer">
-          Community resources ensure chronic healthcare is resilient during crisis and supply disruptions.
+
+        {/* Community Mutual Aid Directory */}
+        <div className="ios-section">
+          <div className="ios-section-header">Resources</div>
+
+          {/* Animated Sliding Segmented Control */}
+          <IosSegmentedControl
+            options={FILTER_OPTIONS}
+            value={filter}
+            onChange={(newVal) => setFilter(newVal)}
+          />
+
+          <div className="ios-list">
+            {filteredResources.length === 0 ? (
+              <div className="ios-row" style={{ color: 'var(--ios-secondary)' }}>
+                No community healthcare resources listed.
+              </div>
+            ) : (
+              filteredResources.map((r) => (
+                <div key={r.id} className="ios-row">
+                  <div className="ios-row-content">
+                    <div className="ios-row-title">{r.title}</div>
+                    <div className="ios-row-sublabel">{r.address} · {r.hours}</div>
+                  </div>
+                  <a
+                    href={`tel:${r.phone}`}
+                    className="ios-pill-btn blue"
+                    onClick={() => triggerHaptic('light')}
+                  >
+                    Call
+                  </a>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </>

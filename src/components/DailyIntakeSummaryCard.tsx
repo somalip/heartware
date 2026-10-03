@@ -29,7 +29,7 @@ export const DailyIntakeSummaryCard: React.FC = () => {
       <div className="ios-section safety-summary-section">
         <div className="ios-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>Medication Safety & Daily Limits</span>
+            <span>Daily limits</span>
             <button
               type="button"
               className="ios-text-button"
@@ -137,9 +137,6 @@ export const DailyIntakeSummaryCard: React.FC = () => {
       )}
 
       <div className="ios-section-footer" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <span>
-          Heartware tracks active ingredients across all 4 dispenser slots to prevent cumulative overdose (e.g. DayQuil + Tylenol).
-        </span>
         <button
           type="button"
           onClick={() => {

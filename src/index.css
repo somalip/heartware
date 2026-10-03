@@ -1897,5 +1897,563 @@ html, body {
   text-decoration: underline;
 }
 
+/* ==========================================================================
+   Adaptive Desktop & Tablet Layout (Unified Responsive Design)
+   ========================================================================== */
+
+/* Outer Shell Container */
+.app-shell {
+  display: flex;
+  min-height: 100dvh;
+  width: 100%;
+}
+
+.app-main-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Desktop Sidebar (Hidden on mobile by default) */
+.desktop-sidebar {
+  display: none;
+}
+
+/* Default Mobile Behavior for New Grid Wrappers */
+.dispenser-desktop-grid,
+.care-desktop-grid,
+.settings-desktop-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.schedule-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.login-desktop-wrapper {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: calc(var(--safe-top) + 24px) 16px calc(var(--safe-bottom) + 24px);
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.login-desktop-card {
+  width: 100%;
+}
+
+/* Hover effects for interactive buttons on pointer devices */
+@media (hover: hover) {
+  button,
+  .ios-row.interactive,
+  .ios-pill-btn,
+  .ios-ble-btn,
+  .ios-ble-chip,
+  .ios-preset-chip,
+  .ios-sample-chip,
+  .ios-scan-header-btn,
+  .ios-scan-tab-btn,
+  .ios-nav-action {
+    cursor: pointer;
+  }
+
+  .ios-pill-btn:hover {
+    filter: brightness(0.96);
+  }
+
+  .ios-row.interactive:hover {
+    background-color: var(--ios-fill);
+  }
+
+  .ios-ble-btn:hover {
+    filter: brightness(0.95);
+  }
+}
+
+/* ==========================================================================
+   Desktop Breakpoint (>= 840px)
+   ========================================================================== */
+@media (min-width: 840px) {
+  html, body {
+    user-select: auto;
+    -webkit-user-select: auto;
+    cursor: default;
+  }
+
+  /* Hide Mobile-Only App Bars */
+  .ios-tab-bar {
+    display: none !important;
+  }
+
+  .ios-nav-header {
+    display: none !important;
+  }
+
+  .ios-status-fill {
+    display: none !important;
+  }
+
+  /* Desktop Sidebar Navigation (macOS/iPadOS Style) */
+  .desktop-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 270px;
+    height: 100dvh;
+    position: sticky;
+    top: 0;
+    flex-shrink: 0;
+    background-color: var(--ios-bar-bg);
+    backdrop-filter: blur(25px) saturate(190%);
+    -webkit-backdrop-filter: blur(25px) saturate(190%);
+    border-right: 0.5px solid var(--ios-bar-border);
+    padding: 24px 18px 20px;
+    z-index: 90;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+
+  .desktop-sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 20px;
+    border-bottom: 0.5px solid var(--ios-separator);
+    margin-bottom: 18px;
+  }
+
+  .desktop-sidebar-logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    background: var(--ios-blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    flex-shrink: 0;
+  }
+
+  .desktop-sidebar-brand {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .desktop-sidebar-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--ios-label);
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .desktop-sidebar-subtitle {
+    font-size: 11.5px;
+    color: var(--ios-secondary);
+    margin: 2px 0 0;
+  }
+
+  /* Sidebar Hardware Status Pill */
+  .desktop-hardware-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    background-color: var(--ios-fill);
+    margin-bottom: 18px;
+    border: 0.5px solid var(--ios-separator);
+  }
+
+  .desktop-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .desktop-status-dot.active {
+    background-color: var(--ios-green);
+  }
+  .desktop-status-dot.simulated {
+    background-color: var(--ios-blue);
+  }
+  .desktop-status-dot.offline {
+    background-color: var(--ios-red);
+  }
+
+  /* Sidebar Nav List */
+  .desktop-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .desktop-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ios-secondary);
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    width: 100%;
+  }
+
+  .desktop-nav-item:hover {
+    background-color: var(--ios-fill);
+    color: var(--ios-label);
+  }
+
+  .desktop-nav-item.active {
+    background-color: rgba(0, 122, 255, 0.12);
+    color: var(--ios-blue);
+    font-weight: 600;
+  }
+
+  .desktop-nav-item .ios-tab-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  /* Quick Demo Hardware Control Box in Sidebar */
+  .desktop-demo-box {
+    background-color: var(--ios-fill);
+    border-radius: 12px;
+    padding: 12px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+    border: 0.5px solid var(--ios-separator);
+  }
+
+  .desktop-demo-box-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ios-secondary);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .desktop-demo-btn {
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    background-color: var(--ios-blue);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: opacity 0.15s ease;
+  }
+  .desktop-demo-btn:hover {
+    opacity: 0.9;
+  }
+  .desktop-demo-btn.secondary {
+    background-color: var(--ios-card);
+    color: var(--ios-label);
+    border: 0.5px solid var(--ios-separator);
+    margin-top: 6px;
+  }
+
+  /* Desktop User Profile Card */
+  .desktop-user-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 14px;
+    border-top: 0.5px solid var(--ios-separator);
+  }
+
+  .desktop-user-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background-color: var(--ios-blue);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .desktop-user-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .desktop-user-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ios-label);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .desktop-user-role {
+    font-size: 11.5px;
+    color: var(--ios-secondary);
+    text-transform: capitalize;
+  }
+
+  /* Expanded Desktop Screen Container */
+  .ios-screen {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-top: 32px;
+    padding-bottom: 60px;
+    padding-left: 36px;
+    padding-right: 36px;
+    min-height: auto;
+  }
+
+  /* Title Block Adjustments on Desktop */
+  .ios-large-title-block {
+    padding: 0 0 24px;
+    margin-bottom: 4px;
+  }
+
+  .ios-large-title {
+    font-size: 38px;
+    line-height: 44px;
+  }
+
+  .ios-subtitle {
+    font-size: 15px;
+    margin-top: 4px;
+  }
+
+  /* Desktop Modal (IosSheet) Conversion */
+  .ios-sheet-overlay {
+    justify-content: center;
+    align-items: center;
+    padding: 30px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .ios-sheet {
+    border-radius: 20px;
+    max-width: 620px;
+    width: 100%;
+    max-height: 86vh;
+    padding-bottom: 24px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35), 0 0 0 0.5px var(--ios-bar-border);
+    animation: alertPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .ios-sheet-grabber {
+    display: none;
+  }
+
+  .ios-sheet-drag-area {
+    padding-top: 0;
+  }
+
+  .ios-sheet-header {
+    padding: 16px 20px 14px;
+  }
+
+  .ios-sheet-content {
+    padding: 20px;
+  }
+
+  /* Grid Layouts for Live Demoing */
+
+  /* Dispenser: 2 Balanced Columns (Controls & Hardware side-by-side) */
+  .dispenser-desktop-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  .dispenser-grid-main {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dispenser-grid-side {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Care: 2 Columns (Immediate Emergency vs Community Aid) */
+  .care-desktop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  /* Schedule Cards: Responsive Multi-Column */
+  .schedule-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 16px;
+  }
+
+  /* History Metrics: 3 Column Row */
+  .history-metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  /* Settings: 2 Columns */
+  .settings-desktop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  /* Desktop Centered Login Card */
+  .login-desktop-wrapper {
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  .login-desktop-card {
+    width: 100%;
+    max-width: 440px;
+    background-color: var(--ios-card);
+    border-radius: 20px;
+    padding: 36px 32px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+    border: 0.5px solid var(--ios-separator);
+  }
+}
+
+/* ==========================================================================
+   Theme layer: quieter, more utilitarian look
+   ========================================================================== */
+:root {
+  --ios-bg: #f6f5f2;
+  --ios-card: #ffffff;
+  --ios-blue: #1f5f5b;
+  --ios-green: #3d7a4f;
+  --ios-orange: #a86a12;
+  --ios-red: #b3372d;
+  --ios-separator: rgba(0, 0, 0, 0.1);
+  --ios-opaque-sep: #dcdad4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ios-bg: #121311;
+    --ios-card: #1b1c1a;
+    --ios-blue: #6fb5ae;
+    --ios-green: #7fbf8e;
+    --ios-orange: #d9a24a;
+    --ios-red: #e0786e;
+    --ios-separator: rgba(255, 255, 255, 0.1);
+  }
+}
+
+html, body { letter-spacing: 0; }
+
+.ios-large-title {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.ios-section-header {
+  text-transform: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ios-label);
+  letter-spacing: 0;
+  padding-left: 0;
+  margin-bottom: 8px;
+}
+.ios-section-footer { padding-left: 0; padding-right: 0; }
+
+.ios-list,
+.ios-ble-card {
+  border-radius: 8px;
+  border: 1px solid var(--ios-separator);
+  box-shadow: none;
+}
+.ios-row:not(:last-child)::after { left: 16px; right: 16px; }
+.ios-row.with-icon:not(:last-child)::after { left: 16px; }
+
+.ios-row-label,
+.ios-row-title,
+.ios-row-value,
+.ios-row-value-bold { font-size: 15px; }
+
+/* Number tiles: neutral outline instead of per-bottle colours */
+.ios-icon-box {
+  background-color: transparent !important;
+  color: var(--ios-secondary);
+  border: 1px solid var(--ios-opaque-sep);
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+/* Status: plain coloured text, no tinted chips */
+.ios-badge,
+.ios-badge.green,
+.ios-badge.orange,
+.ios-badge.red {
+  background: none !important;
+  padding: 0;
+  border-radius: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Buttons: smaller radius, solid fill, no pill shapes */
+.ios-btn-primary,
+.ios-ble-btn,
+.ios-scan-header-btn,
+.ios-pill-btn,
+.ios-scan-shortcut-btn { border-radius: 6px; }
+.ios-ble-btn.primary,
+.ios-btn-primary { background-color: var(--ios-blue); color: #fff; }
+@media (prefers-color-scheme: dark) {
+  .ios-ble-btn.primary,
+  .ios-btn-primary { color: #0d1110; }
+}
+.ios-nav-action { font-size: 15px; font-weight: 500; }
+
 
 
