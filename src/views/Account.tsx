@@ -52,12 +52,12 @@ export function Account() {
 
       <h2>Device</h2>
       <p>
-        <button onClick={reset}>Reset device data</button>
+        <button className="danger" onClick={reset}>Reset device data</button>
       </p>
 
       <h2>Session</h2>
       <p>
-        <button onClick={logout}>Sign out</button>
+        <button className="danger" onClick={logout}>Sign out</button>
       </p>
     </>
   );

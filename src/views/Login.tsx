@@ -22,7 +22,8 @@ export function Login() {
   };
 
   return (
-    <main>
+    <main className="bare">
+      <span className="statusbar" aria-hidden="true" />
       <h1>Heartware</h1>
       <p className="mute">Medication dispenser</p>
 
@@ -61,7 +62,7 @@ export function Login() {
         )}
         {error && <p className="danger">{error}</p>}
         <p>
-          <button type="submit" disabled={busy}>
+          <button type="submit" className="primary" disabled={busy}>
             {mode === 'in' ? 'Sign in' : 'Create account'}
           </button>
         </p>

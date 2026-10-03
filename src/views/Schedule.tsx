@@ -44,7 +44,7 @@ export function Schedule() {
               {s.instructions ? ` · ${s.instructions}` : ''}
             </p>
             <p>
-              <button onClick={() => deleteSchedule(s.id)}>Remove</button>
+              <button className="danger" onClick={() => deleteSchedule(s.id)}>Remove</button>
             </p>
           </li>
         ))}

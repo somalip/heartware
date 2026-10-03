@@ -1,8 +1,8 @@
 // Network-first service worker: always tries fresh files, falls back to cache offline.
-const CACHE = 'heartware-v1';
+const CACHE = 'heartware-v2';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/manifest.json', '/favicon.svg'])));
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/manifest.json', '/favicon.svg', '/apple-touch-icon.png'])));
   self.skipWaiting();
 });
 
