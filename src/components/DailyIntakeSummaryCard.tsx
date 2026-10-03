@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { useMedication } from '../context/MedicationContext';
 import { medicationSafetyService } from '../services/medicationSafetyService';
+import { MedicationSafetyInfoModal } from './MedicationSafetyInfoModal';
 import { triggerHaptic } from '../utils/haptics';
+import { InfoIcon, AlertTriangleIcon } from './Icons';
 
 export const DailyIntakeSummaryCard: React.FC = () => {
   const { chambers, logs } = useMedication();
   const [expanded, setExpanded] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   // If user has no active configured medications in any chamber, completely hide
   const hasConfiguredChambers = chambers.some((c) => c.medicationName.trim().length > 0);
@@ -22,28 +25,54 @@ export const DailyIntakeSummaryCard: React.FC = () => {
   }
 
   return (
-    <div className="ios-section safety-summary-section">
-      <div className="ios-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>Medication Safety & Daily Limits</span>
-        {intakeList.length > 0 && (
-          <button
-            type="button"
-            className="ios-text-button"
-            onClick={() => {
-              triggerHaptic('light');
-              setExpanded(!expanded);
-            }}
-            style={{ fontSize: '13px', color: 'var(--ios-blue)', background: 'none', border: 'none', cursor: 'pointer' }}
-          >
-            {expanded ? 'Show Less' : 'Details'}
-          </button>
-        )}
-      </div>
+    <>
+      <div className="ios-section safety-summary-section">
+        <div className="ios-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>Medication Safety & Daily Limits</span>
+            <button
+              type="button"
+              className="ios-text-button"
+              onClick={() => {
+                triggerHaptic('light');
+                setShowInfoModal(true);
+              }}
+              style={{
+                fontSize: '13px',
+                color: 'var(--ios-blue)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px',
+                padding: '2px 4px',
+              }}
+              title="Clinical sources and calculation methodology"
+            >
+              <InfoIcon size={14} color="var(--ios-blue)" />
+              <span style={{ textDecoration: 'underline' }}>Info</span>
+            </button>
+          </div>
+          {intakeList.length > 0 && (
+            <button
+              type="button"
+              className="ios-text-button"
+              onClick={() => {
+                triggerHaptic('light');
+                setExpanded(!expanded);
+              }}
+              style={{ fontSize: '13px', color: 'var(--ios-blue)', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              {expanded ? 'Show Less' : 'Details'}
+            </button>
+          )}
+        </div>
 
       {/* Cross-Intake Conflict Warning Banner */}
       {conflicts.length > 0 && (
         <div className="ios-safety-warning-banner">
-          <div className="ios-safety-warning-icon">⚠️</div>
+          <AlertTriangleIcon size={20} color="var(--ios-orange)" />
           <div className="ios-safety-warning-body">
             <div className="ios-safety-warning-title">Cross-Intake Conflict Detected</div>
             {conflicts.map((c, i) => (
@@ -107,9 +136,35 @@ export const DailyIntakeSummaryCard: React.FC = () => {
         </div>
       )}
 
-      <div className="ios-section-footer">
-        Heartware tracks active ingredients across all 4 dispenser slots to prevent cumulative overdose (e.g. DayQuil + Tylenol).
+      <div className="ios-section-footer" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <span>
+          Heartware tracks active ingredients across all 4 dispenser slots to prevent cumulative overdose (e.g. DayQuil + Tylenol).
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic('light');
+            setShowInfoModal(true);
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            color: 'var(--ios-blue)',
+            fontSize: '12.5px',
+            textAlign: 'left',
+            cursor: 'pointer',
+            fontWeight: 500,
+          }}
+        >
+          How are limits calculated? Review public FDA/NIH sources & formulas →
+        </button>
       </div>
     </div>
+
+    {showInfoModal && (
+      <MedicationSafetyInfoModal onClose={() => setShowInfoModal(false)} />
+    )}
+  </>
   );
 };

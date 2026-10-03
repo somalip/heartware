@@ -17,8 +17,14 @@ interface MedicationContextType {
   dispenseNow: (
     chamberId: 1 | 2 | 3 | 4,
     reason?: 'scheduled_auto' | 'app_trigger' | 'hardware_button' | 'manual_override',
+    bypassSafety?: boolean,
+    count?: number
+  ) => Promise<{ success: boolean; message: string; safetyEvaluation?: DispenseSafetyEvaluation; response?: string }>;
+  dispenseChain: (
+    sequence: (1 | 2 | 3)[],
+    reason?: 'scheduled_auto' | 'app_trigger' | 'hardware_button' | 'manual_override',
     bypassSafety?: boolean
-  ) => Promise<{ success: boolean; message: string; safetyEvaluation?: DispenseSafetyEvaluation }>;
+  ) => Promise<{ success: boolean; message: string; response?: string }>;
   applyPrescriptionScan: (data: {
     slotId: 1 | 2 | 3 | 4;
     medicationName: string;
@@ -36,7 +42,7 @@ interface MedicationContextType {
 const MedicationContext = createContext<MedicationContextType | undefined>(undefined);
 
 export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { triggerDispense } = useHardware();
+  const { triggerDispense, triggerChainedDispense } = useHardware();
   const [chambers, setChambers] = useState<ChamberConfig[]>(() => storageService.getChambers());
   const [schedules, setSchedules] = useState<MedicationSchedule[]>(() => storageService.getSchedules());
   const [logs, setLogs] = useState<DispenseLog[]>(() => storageService.getLogs());
@@ -90,14 +96,19 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const dispenseNow = async (
     chamberId: 1 | 2 | 3 | 4,
     reason: 'scheduled_auto' | 'app_trigger' | 'hardware_button' | 'manual_override' = 'app_trigger',
-    bypassSafety = false
-  ): Promise<{ success: boolean; message: string; safetyEvaluation?: DispenseSafetyEvaluation }> => {
+    bypassSafety = false,
+    count = 1
+  ): Promise<{ success: boolean; message: string; safetyEvaluation?: DispenseSafetyEvaluation; response?: string }> => {
     const chamber = chambers.find(c => c.servoId === chamberId);
     if (!chamber) {
-      return { success: false, message: 'Invalid chamber ID requested' };
+      return { success: false, message: 'Invalid bottle ID requested' };
     }
-    if (chamber.currentCount <= 0) {
-      return { success: false, message: `Chamber ${chamberId} (${chamber.medicationName || 'Slot ' + chamberId}) is empty! Refill required.` };
+    const pillCount = Math.max(1, count);
+    if (chamber.currentCount < pillCount) {
+      return {
+        success: false,
+        message: `Bottle ${chamberId} (${chamber.medicationName || 'Bottle ' + chamberId}) has only ${chamber.currentCount} pill${chamber.currentCount === 1 ? '' : 's'} remaining! Cannot dispense ${pillCount}.`
+      };
     }
 
     // Pre-dispense safety check
@@ -112,15 +123,15 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    // Call hardware servo
-    const result = await triggerDispense(chamber);
+    // Call hardware servo (sends single number "1", "2", "3" or repeated e.g. "11")
+    const result = await triggerDispense(chamber, pillCount);
 
     if (result.success) {
       // Decrement pill count
       setChambers(prev =>
         prev.map(c => {
           if (c.servoId === chamberId) {
-            const nextCount = Math.max(0, c.currentCount - 1);
+            const nextCount = Math.max(0, c.currentCount - pillCount);
             return {
               ...c,
               currentCount: nextCount,
@@ -141,12 +152,105 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         medicationName: chamber.medicationName,
         status: 'success',
         dispensedBy: reason,
-        notes: `Dispensed 1 pill from Servo #${chamberId}`,
+        notes: `Dispensed ${pillCount} pill${pillCount > 1 ? 's' : ''} from Bottle #${chamberId}`,
         activeIngredients: ingredients,
-        pillsDispensed: 1,
+        pillsDispensed: pillCount,
       });
 
       setLogs(prev => [newLog, ...prev]);
+    }
+
+    return result;
+  };
+
+  const dispenseChain = async (
+    sequence: (1 | 2 | 3)[],
+    reason: 'scheduled_auto' | 'app_trigger' | 'hardware_button' | 'manual_override' = 'app_trigger',
+    bypassSafety = false
+  ): Promise<{ success: boolean; message: string; response?: string }> => {
+    if (!sequence.length) {
+      return { success: false, message: 'No bottles selected in chain.' };
+    }
+
+    // Check inventory for each bottle in sequence
+    const counts: Record<number, number> = {};
+    for (const id of sequence) {
+      counts[id] = (counts[id] || 0) + 1;
+    }
+
+    for (const [idStr, needed] of Object.entries(counts)) {
+      const id = Number(idStr) as 1 | 2 | 3;
+      const ch = chambers.find(c => c.servoId === id);
+      if (!ch || ch.currentCount < needed) {
+        return {
+          success: false,
+          message: `Bottle ${id} (${ch?.medicationName || `Bottle ${id}`}) has insufficient pills (${ch?.currentCount || 0} available, ${needed} required).`
+        };
+      }
+    }
+
+    // Pre-dispense safety checks if not bypassed
+    if (!bypassSafety) {
+      for (const [idStr] of Object.entries(counts)) {
+        const id = Number(idStr) as 1 | 2 | 3;
+        const evaluation = medicationSafetyService.validateDispenseSafety(id, chambers, logs);
+        if (!evaluation.safeToDispense) {
+          return {
+            success: false,
+            message: `Safety check failed for Bottle ${id}: ${evaluation.blockReason || evaluation.warnings[0] || 'Limit reached'}`,
+          };
+        }
+      }
+    }
+
+    // Map names for display
+    const bottleNames: Record<number, string> = {};
+    chambers.forEach(c => {
+      bottleNames[c.servoId] = c.medicationName;
+    });
+
+    // Call hardware service chained dispense (sends concatenated bottle digits e.g. "123")
+    const result = await triggerChainedDispense(sequence, bottleNames);
+
+    if (result.success) {
+      // Decrement inventory
+      setChambers(prev =>
+        prev.map(c => {
+          const used = counts[c.servoId] || 0;
+          if (used > 0) {
+            const nextCount = Math.max(0, c.currentCount - used);
+            return {
+              ...c,
+              currentCount: nextCount,
+              status: nextCount === 0 ? 'empty' : nextCount <= 4 ? 'low' : 'ready'
+            };
+          }
+          return c;
+        })
+      );
+
+      // Add log entries
+      const newLogs: DispenseLog[] = [];
+      for (const [idStr, used] of Object.entries(counts)) {
+        const id = Number(idStr) as 1 | 2 | 3;
+        const ch = chambers.find(c => c.servoId === id);
+        const matched = ch ? findBestMatch(ch.medicationName) : null;
+        const ingredients = ch?.activeIngredients || matched?.activeIngredients || [];
+
+        const logEntry = storageService.addLog({
+          timestamp: new Date().toISOString(),
+          chamberId: id,
+          medicationName: ch?.medicationName || `Bottle ${id}`,
+          status: 'success',
+          dispensedBy: reason,
+          notes: `Chained dispense (${used} pill${used > 1 ? 's' : ''}, sequence: "${sequence.join('')}")`,
+          activeIngredients: ingredients,
+          pillsDispensed: used,
+        });
+        newLogs.push(logEntry);
+      }
+
+      setLogs(prev => [...newLogs, ...prev]);
     }
 
     return result;
@@ -237,6 +341,7 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updateSchedule,
         deleteSchedule,
         dispenseNow,
+        dispenseChain,
         applyPrescriptionScan,
         calculateAdherenceRate
       }}

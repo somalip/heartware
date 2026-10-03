@@ -1,23 +1,25 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp } from 'firebase/app';
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCvGEriFqIMvNJ5pZ4blUAt1MvuqrBa59M",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "heartware-caea7.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "heartware-caea7",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "heartware-caea7.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "726904171313",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:726904171313:web:70b4e2e10bcea1b1069e10",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-VX90KTR9R2"
+  apiKey: import.meta?.env?.VITE_FIREBASE_API_KEY || "AIzaSyCvGEriFqIMvNJ5pZ4blUAt1MvuqrBa59M",
+  authDomain: import.meta?.env?.VITE_FIREBASE_AUTH_DOMAIN || "heartware-caea7.firebaseapp.com",
+  projectId: import.meta?.env?.VITE_FIREBASE_PROJECT_ID || "heartware-caea7",
+  storageBucket: import.meta?.env?.VITE_FIREBASE_STORAGE_BUCKET || "heartware-caea7.firebasestorage.app",
+  messagingSenderId: import.meta?.env?.VITE_FIREBASE_MESSAGING_SENDER_ID || "726904171313",
+  appId: import.meta?.env?.VITE_FIREBASE_APP_ID || "1:726904171313:web:1569af364df9377e069e10",
+  measurementId: import.meta?.env?.VITE_FIREBASE_MEASUREMENT_ID || "G-5V6XXER82H"
 };
 
 // Initialize Firebase
-export const app = initializeApp(firebaseConfig);
-export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+let appInstance: any = null;
+try {
+  appInstance = initializeApp(firebaseConfig);
+} catch {
+  // If already initialized or during build
+}
+export const app = appInstance;
+export const analytics: any = null;
+export const auth: any = null;
+export const db: any = null;

@@ -4,9 +4,14 @@ import { hardwareService } from '../services/hardwareService';
 
 interface HardwareContextType {
   state: HardwareState;
-  connectBluetooth: () => Promise<{ success: boolean; message: string }>;
+  connectBluetooth: (options?: { acceptAllDevices?: boolean }) => Promise<{ success: boolean; message: string }>;
+  connectSimulated: (customMessage?: string) => { success: boolean; message: string };
   disconnect: () => void;
-  triggerDispense: (chamber: ChamberConfig) => Promise<{ success: boolean; message: string }>;
+  readCharacteristicValue: () => Promise<string | null>;
+  writeCharacteristicValue: (value: string) => Promise<{ success: boolean; message: string; response?: string }>;
+  clearBleLogs: () => void;
+  triggerDispense: (chamber: ChamberConfig, count?: number) => Promise<{ success: boolean; message: string; response?: string }>;
+  triggerChainedDispense: (sequence: (1 | 2 | 3)[], bottleNames?: Record<number, string>) => Promise<{ success: boolean; message: string; response?: string }>;
   testCalibrateServo: (servoId: number, angle: number) => Promise<string>;
 }
 
@@ -22,16 +27,36 @@ export const HardwareProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => unsubscribe();
   }, []);
 
-  const connectBluetooth = async () => {
-    return await hardwareService.connectBluetooth();
+  const connectBluetooth = async (options?: { acceptAllDevices?: boolean }) => {
+    return await hardwareService.connectBluetooth(options);
+  };
+
+  const connectSimulated = (customMessage?: string) => {
+    return hardwareService.connectSimulated(customMessage);
   };
 
   const disconnect = () => {
     hardwareService.disconnect();
   };
 
-  const triggerDispense = async (chamber: ChamberConfig) => {
-    return await hardwareService.triggerServoDispense(chamber);
+  const readCharacteristicValue = async () => {
+    return await hardwareService.readCharacteristicValue();
+  };
+
+  const writeCharacteristicValue = async (value: string) => {
+    return await hardwareService.writeCharacteristicValue(value);
+  };
+
+  const clearBleLogs = () => {
+    hardwareService.clearBleLogs();
+  };
+
+  const triggerDispense = async (chamber: ChamberConfig, count: number = 1) => {
+    return await hardwareService.triggerServoDispense(chamber, count);
+  };
+
+  const triggerChainedDispense = async (sequence: (1 | 2 | 3)[], bottleNames?: Record<number, string>) => {
+    return await hardwareService.triggerChainedDispense(sequence, bottleNames);
   };
 
   const testCalibrateServo = async (servoId: number, angle: number) => {
@@ -39,7 +64,20 @@ export const HardwareProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   return (
-    <HardwareContext.Provider value={{ state, connectBluetooth, disconnect, triggerDispense, testCalibrateServo }}>
+    <HardwareContext.Provider
+      value={{
+        state,
+        connectBluetooth,
+        connectSimulated,
+        disconnect,
+        readCharacteristicValue,
+        writeCharacteristicValue,
+        clearBleLogs,
+        triggerDispense,
+        triggerChainedDispense,
+        testCalibrateServo
+      }}
+    >
       {children}
     </HardwareContext.Provider>
   );

@@ -4,6 +4,7 @@ import { useToast } from '../context/ToastContext';
 import { useAlert } from '../context/AlertContext';
 import { storageService } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
+import { MedicationSafetyInfoModal } from '../components/MedicationSafetyInfoModal';
 import { triggerHaptic } from '../utils/haptics';
 
 export function Account() {
@@ -15,6 +16,7 @@ export function Account() {
   const [contactName, setContactName] = useState(user?.emergencyContact.name ?? '');
   const [contactPhone, setContactPhone] = useState(user?.emergencyContact.phone ?? '');
   const [notifPerm, setNotifPerm] = useState(notificationService.getPermission());
+  const [showSafetyModal, setShowSafetyModal] = useState(false);
   const isStandalone = notificationService.isStandalone();
 
   if (!user) return null;
@@ -199,7 +201,32 @@ export function Account() {
         <div className="ios-section-footer">
           {isStandalone
             ? 'Active as Home Screen Web App. Dosing alerts appear directly on your Lock Screen and Apple Watch.'
-            : 'For notifications on iOS, tap the Share icon ⎋ and select "Add to Home Screen". Once added, notifications can alert your Lock Screen.'}
+            : 'For notifications on iOS, tap the Share icon and select "Add to Home Screen". Once added, notifications can alert your Lock Screen.'}
+        </div>
+      </div>
+
+      {/* Clinical Standards & Safety Database Section */}
+      <div className="ios-section">
+        <div className="ios-section-header">Clinical Standards & Safety</div>
+        <div className="ios-list">
+          <div
+            className="ios-row interactive"
+            onClick={() => {
+              triggerHaptic('light');
+              setShowSafetyModal(true);
+            }}
+          >
+            <div className="ios-row-content">
+              <div className="ios-row-title">Dosage Limits & Calculation Engine</div>
+              <div className="ios-row-sublabel">
+                Public FDA monographs, NIH DailyMed, rolling 24h intake & formulas
+              </div>
+            </div>
+            <div className="ios-chevron" style={{ color: 'var(--ios-tertiary)', fontSize: '20px' }}>›</div>
+          </div>
+        </div>
+        <div className="ios-section-footer">
+          Heartware relies strictly on public clinical monographs (21 CFR Parts 341 & 343, NIH DailyMed, RxNorm) for transparent, verified safe dosage calculations.
         </div>
       </div>
 
@@ -228,6 +255,10 @@ export function Account() {
           </div>
         </div>
       </div>
+
+      {showSafetyModal && (
+        <MedicationSafetyInfoModal onClose={() => setShowSafetyModal(false)} />
+      )}
     </>
   );
 }

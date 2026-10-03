@@ -20,6 +20,8 @@ export interface MedicationReference {
   id: string;
   brandName: string;
   genericName: string;
+  aliases?: string[];
+  barcodes?: string[];
   category: 'analgesic' | 'nsaid' | 'cold_flu' | 'allergy' | 'antibiotic' | 'cardiovascular' | 'diabetes' | 'other';
   defaultStrength: string;
   unit: 'tablet' | 'capsule' | 'caplet' | 'liquicap' | 'ml';
@@ -119,6 +121,13 @@ export interface DispenseSafetyEvaluation {
   };
 }
 
+export interface BleLogEntry {
+  id: string;
+  time: string;
+  direction: 'rx' | 'tx' | 'info' | 'error';
+  message: string;
+}
+
 export interface HardwareState {
   connected: boolean;
   connectionType: 'ble' | 'wifi' | 'simulated';
@@ -131,6 +140,14 @@ export interface HardwareState {
   oledText: { line1: string; line2: string; line3: string; line4: string };
   buzzerEnabled: boolean;
   ledRingColor: string;
+  serviceUuid: string;
+  characteristicUuid: string;
+  lastReadValue?: string;
+  lastReadTimestamp?: string;
+  isReading?: boolean;
+  isWriting?: boolean;
+  bleLogs: BleLogEntry[];
+  bluetoothSupported: boolean;
 }
 
 export interface CommunityResource {

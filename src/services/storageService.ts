@@ -7,7 +7,7 @@ const KEYS = {
   LOGS: 'heartware_logs',
 };
 
-const emptySlot = (servoId: 1 | 2 | 3 | 4): ChamberConfig => ({
+const emptyBottle = (servoId: 1 | 2 | 3): ChamberConfig => ({
   servoId,
   medicationName: '',
   pillStrength: '',
@@ -17,14 +17,13 @@ const emptySlot = (servoId: 1 | 2 | 3 | 4): ChamberConfig => ({
   servoAngleDispense: 90,
   colorTag: '#111',
   status: 'ready',
-  slotLabel: `Slot ${servoId}`,
+  slotLabel: `Bottle ${servoId}`,
 });
 
 export const INITIAL_CHAMBERS: ChamberConfig[] = [
-  emptySlot(1),
-  emptySlot(2),
-  emptySlot(3),
-  emptySlot(4),
+  emptyBottle(1),
+  emptyBottle(2),
+  emptyBottle(3),
 ];
 
 export const INITIAL_SCHEDULES: MedicationSchedule[] = [];
@@ -67,7 +66,17 @@ function read<T>(key: string, fallback: T): T {
 }
 
 export const storageService = {
-  getChambers: () => read(KEYS.CHAMBERS, INITIAL_CHAMBERS),
+  getChambers: () => {
+    const raw = read<ChamberConfig[]>(KEYS.CHAMBERS, INITIAL_CHAMBERS);
+    const valid = raw
+      .filter((c) => c.servoId >= 1 && c.servoId <= 3)
+      .map((c) => ({
+        ...c,
+        slotLabel: c.slotLabel?.startsWith('Slot') ? `Bottle ${c.servoId}` : c.slotLabel || `Bottle ${c.servoId}`,
+      }));
+    if (valid.length === 3) return valid;
+    return INITIAL_CHAMBERS;
+  },
   saveChambers: (v: ChamberConfig[]) => localStorage.setItem(KEYS.CHAMBERS, JSON.stringify(v)),
   getSchedules: () => read(KEYS.SCHEDULES, INITIAL_SCHEDULES),
   saveSchedules: (v: MedicationSchedule[]) => localStorage.setItem(KEYS.SCHEDULES, JSON.stringify(v)),

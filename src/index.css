@@ -925,6 +925,215 @@ html, body {
   text-align: right;
 }
 
+/* Bluetooth Live Telemetry & Console */
+.ios-ble-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ios-ble-card {
+  background-color: var(--ios-card);
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 0.5px solid var(--ios-separator);
+}
+
+.ios-ble-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ios-ble-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  color: var(--ios-secondary);
+}
+
+.ios-ble-telemetry-box {
+  background: var(--ios-bg);
+  border: 1px solid var(--ios-separator);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ios-label);
+  word-break: break-all;
+}
+
+.ios-ble-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--ios-secondary);
+  margin-top: 6px;
+}
+
+.ios-ble-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.ios-ble-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  background-color: var(--ios-fill);
+  color: var(--ios-label);
+  transition: opacity 0.15s ease;
+}
+
+.ios-ble-btn:hover {
+  opacity: 0.85;
+}
+
+.ios-ble-btn.primary {
+  background-color: var(--ios-blue);
+  color: #ffffff;
+}
+
+.ios-ble-btn.danger {
+  background-color: rgba(255, 59, 48, 0.15);
+  color: var(--ios-red);
+}
+
+.ios-ble-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ios-ble-input-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ios-ble-input {
+  flex: 1;
+  background: var(--ios-bg);
+  border: 1px solid var(--ios-separator);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--ios-label);
+  outline: none;
+  font-family: inherit;
+}
+
+.ios-ble-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ios-ble-chip {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  background-color: var(--ios-fill);
+  color: var(--ios-secondary);
+  border: 1px solid var(--ios-separator);
+  cursor: pointer;
+}
+
+.ios-ble-chip:hover {
+  color: var(--ios-label);
+  border-color: var(--ios-blue);
+}
+
+.ios-ble-console {
+  background: #111418;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ios-ble-log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.ios-ble-log-time {
+  color: #64748b;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.ios-ble-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.ios-ble-tag.rx {
+  background: rgba(52, 199, 89, 0.2);
+  color: #34c759;
+}
+
+.ios-ble-tag.tx {
+  background: rgba(0, 122, 255, 0.2);
+  color: #5ac8fa;
+}
+
+.ios-ble-tag.info {
+  background: rgba(142, 142, 147, 0.2);
+  color: #94a3b8;
+}
+
+.ios-ble-tag.error {
+  background: rgba(255, 59, 48, 0.2);
+  color: #ff453a;
+}
+
+.ios-ble-log-msg {
+  flex: 1;
+}
+
+.ios-ble-notice {
+  background: rgba(255, 149, 0, 0.12);
+  border: 1px solid rgba(255, 149, 0, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--ios-orange);
+  line-height: 1.4;
+  margin-top: 10px;
+}
+
+
 
 
 /* Form Elements */
@@ -1381,7 +1590,9 @@ html, body {
   border-color: var(--ios-blue);
 }
 .ios-upload-icon {
-  font-size: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 8px;
 }
 .ios-upload-title {
@@ -1396,6 +1607,22 @@ html, body {
 }
 
 
+.ios-scan-laser-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(0,122,255,0) 0%, rgba(0,122,255,1) 50%, rgba(0,122,255,0) 100%);
+  box-shadow: 0 0 8px #007aff;
+  animation: scanLaser 2.2s ease-in-out infinite alternate;
+}
+
+@keyframes scanLaser {
+  0% { top: 10%; opacity: 0.3; }
+  50% { opacity: 0.9; }
+  100% { top: 90%; opacity: 0.3; }
+}
+
 .ios-processing-banner {
   display: flex;
   align-items: center;
@@ -1404,6 +1631,84 @@ html, body {
   padding: 16px;
   font-size: 14px;
   color: var(--ios-secondary);
+}
+
+.ios-scan-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin: 0 16px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.ios-scan-status-banner.success {
+  background-color: rgba(52, 199, 89, 0.14);
+  color: var(--ios-green);
+  border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.ios-scan-status-banner.warning {
+  background-color: rgba(255, 149, 0, 0.12);
+  color: #c96d00;
+  border: 1px solid rgba(255, 149, 0, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  .ios-scan-status-banner.warning {
+    color: #ffaa33;
+  }
+}
+
+.ios-preset-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: var(--ios-fill);
+  border: 1px solid var(--ios-separator);
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ios-label);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ios-preset-chip:hover {
+  background-color: rgba(0, 122, 255, 0.12);
+  border-color: var(--ios-blue);
+  color: var(--ios-blue);
+}
+
+.ios-preset-chip:active {
+  transform: scale(0.96);
+}
+
+.ios-sample-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: rgba(0, 122, 255, 0.08);
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ios-blue);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.ios-sample-chip:hover {
+  background-color: rgba(0, 122, 255, 0.18);
+}
+
+.ios-sample-chip:active {
+  transform: scale(0.96);
 }
 
 /* Parsed Prescription Preview */
@@ -1528,5 +1833,69 @@ html, body {
   border-bottom: none;
   cursor: pointer;
 }
+
+/* Medication Safety & Clinical Limits Info Modal */
+.ios-formula-card {
+  background-color: var(--ios-card);
+  border: 0.5px solid var(--ios-separator);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.ios-formula-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.ios-formula-step {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background-color: var(--ios-blue);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ios-formula-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ios-label);
+}
+.ios-formula-box {
+  background-color: var(--ios-fill);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--ios-blue);
+  overflow-x: auto;
+  margin: 6px 0;
+}
+.ios-formula-example {
+  background-color: rgba(52, 199, 89, 0.08);
+  border-left: 3px solid var(--ios-green);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--ios-secondary);
+  line-height: 1.4;
+  margin-top: 8px;
+}
+.ios-source-card {
+  background-color: var(--ios-card);
+  border: 0.5px solid var(--ios-separator);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.ios-source-link:hover {
+  text-decoration: underline;
+}
+
 
 

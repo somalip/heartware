@@ -6,6 +6,7 @@ import { useAlert } from '../context/AlertContext';
 import { COMMUNITY_RESOURCES } from '../services/storageService';
 import { IosSegmentedControl } from '../components/IosSegmentedControl';
 import { triggerHaptic } from '../utils/haptics';
+import { PhoneIcon } from '../components/Icons';
 
 type FilterType = 'all' | 'free_clinic' | 'pharmacy_refill' | 'crisis_pantry';
 
@@ -23,18 +24,18 @@ export function Care({ goToAccount }: { goToAccount: () => void }) {
   const { showConfirm } = useAlert();
   const [filter, setFilter] = useState<FilterType>('all');
 
-  const emergencyChamber = chambers.find((c) => c.servoId === 4);
+  const emergencyChamber = chambers.find((c) => c.servoId === 3);
   const contact = user?.emergencyContact;
 
   const handleDispenseEmergency = async () => {
     if (!emergencyChamber || emergencyChamber.currentCount === 0) {
-      showToast('Emergency chamber is empty', 'error');
+      showToast('Emergency bottle is empty', 'error');
       return;
     }
 
     const confirmed = await showConfirm({
       title: 'Dispense Emergency Dose?',
-      message: `Actuate Slot 4 for immediate dispense of ${emergencyChamber.medicationName} (${emergencyChamber.pillStrength})?`,
+      message: `Actuate Bottle 3 for immediate dispense of ${emergencyChamber.medicationName} (${emergencyChamber.pillStrength})?`,
       confirmText: 'Dispense Now',
       cancelText: 'Cancel',
       isDestructive: false,
@@ -42,7 +43,7 @@ export function Care({ goToAccount }: { goToAccount: () => void }) {
 
     if (confirmed) {
       triggerHaptic('heavy');
-      const res = await dispenseNow(4, 'hardware_button');
+      const res = await dispenseNow(3, 'hardware_button');
       showToast(res.message, 'success');
     }
   };
@@ -86,13 +87,13 @@ export function Care({ goToAccount }: { goToAccount: () => void }) {
             <div className="ios-row-content">
               <div className="ios-row-title">
                 {emergencyChamber?.medicationName
-                  ? `Dispense Slot 4 (${emergencyChamber.medicationName})`
-                  : 'Slot 4 (Emergency PRN)'}
+                  ? `Dispense Bottle 3 (${emergencyChamber.medicationName})`
+                  : 'Bottle 3 (Emergency PRN)'}
               </div>
               <div className="ios-row-sublabel">
                 {emergencyChamber?.medicationName
                   ? `${emergencyChamber.currentCount} pills remaining in reservoir`
-                  : 'Chamber not configured'}
+                  : 'Bottle not configured'}
               </div>
             </div>
             <button
@@ -106,7 +107,7 @@ export function Care({ goToAccount }: { goToAccount: () => void }) {
 
           <div className="ios-row with-icon">
             <div className="ios-icon-box" style={{ backgroundColor: 'var(--ios-blue)' }}>
-              📞
+              <PhoneIcon size={16} color="#fff" />
             </div>
             <div className="ios-row-content">
               <div className="ios-row-title">

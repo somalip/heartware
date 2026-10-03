@@ -11,15 +11,29 @@ import { PrescriptionScannerModal } from '../components/PrescriptionScannerModal
 import { medicationSafetyService } from '../services/medicationSafetyService';
 import { searchMedications, calculateAutomaticDailyLimit, findBestMatch } from '../data/medicationDatabase';
 import { triggerHaptic } from '../utils/haptics';
+import { XIcon } from '../components/Icons';
 
 export function Dispenser() {
-  const { chambers, schedules, logs, dispenseNow, applyPrescriptionScan } = useMedication();
-  const { state, connectBluetooth, disconnect } = useHardware();
+  const { chambers, schedules, logs, dispenseNow, dispenseChain, applyPrescriptionScan } = useMedication();
+  const {
+    state,
+    connectBluetooth,
+    connectSimulated,
+    disconnect,
+    readCharacteristicValue,
+    writeCharacteristicValue,
+    clearBleLogs,
+  } = useHardware();
   const { showToast } = useToast();
 
   const [editingChamber, setEditingChamber] = useState<ChamberConfig | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [scannerSlotId, setScannerSlotId] = useState<1 | 2 | 3 | 4>(1);
+  const [customBleCommand, setCustomBleCommand] = useState('');
+  const [showBleConsole, setShowBleConsole] = useState(false);
+  const [scanAllDevices, setScanAllDevices] = useState(false);
+  const [dispenseCounts, setDispenseCounts] = useState<Record<number, number>>({ 1: 1, 2: 1, 3: 1 });
+  const [chainedQueue, setChainedQueue] = useState<(1 | 2 | 3)[]>([]);
   const [safetyAlert, setSafetyAlert] = useState<{
     evaluation: DispenseSafetyEvaluation;
     chamber: ChamberConfig;
@@ -47,7 +61,8 @@ export function Dispenser() {
 
   const handleDispense = async (c: ChamberConfig) => {
     triggerHaptic('medium');
-    const res = await dispenseNow(c.servoId, 'app_trigger', false);
+    const count = dispenseCounts[c.servoId] || 1;
+    const res = await dispenseNow(c.servoId, 'app_trigger', false, count);
 
     if (res.safetyEvaluation && !res.safetyEvaluation.safeToDispense) {
       triggerHaptic('warning');
@@ -56,6 +71,21 @@ export function Dispenser() {
     }
 
     showToast(res.message, res.success ? 'success' : 'error');
+  };
+
+  const handleExecuteChain = async () => {
+    if (!chainedQueue.length) {
+      showToast('Queue is empty. Select bottles to chain.', 'warning');
+      return;
+    }
+    triggerHaptic('heavy');
+    const res = await dispenseChain(chainedQueue, 'app_trigger', false);
+    if (res.success) {
+      showToast(res.message, 'success');
+      setChainedQueue([]);
+    } else {
+      showToast(res.message, 'error');
+    }
   };
 
   const handleEmergencyOverrideDispense = async () => {
@@ -73,12 +103,55 @@ export function Dispenser() {
       disconnect();
       showToast('ESP32 Disconnected', 'warning');
     } else {
-      const res = await connectBluetooth();
+      const res = await connectBluetooth({ acceptAllDevices: scanAllDevices });
       showToast(res.message, res.success ? 'success' : 'error');
     }
   };
 
-  const slotColors = ['#007aff', '#34c759', '#af52de', '#ff9500'];
+  const handleConnectBle = async () => {
+    triggerHaptic('selection');
+    const res = await connectBluetooth({ acceptAllDevices: scanAllDevices });
+    showToast(res.message, res.success ? 'success' : 'error');
+  };
+
+  const handleConnectSimulated = () => {
+    triggerHaptic('selection');
+    const res = connectSimulated();
+    showToast(res.message, 'info');
+  };
+
+  const handleReadBle = async () => {
+    try {
+      triggerHaptic('selection');
+      const val = await readCharacteristicValue();
+      showToast(`Read from ESP32: "${val}"`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to read characteristic', 'error');
+    }
+  };
+
+  const handleSendBleCommand = async (cmd?: string) => {
+    const payload = cmd || customBleCommand.trim();
+    if (!payload) return;
+
+    // If hardware is not yet connected, auto-link virtual ESP32 so tests always succeed
+    if (!state.connected) {
+      triggerHaptic('light');
+      connectSimulated('Hardware link auto-started in simulation mode for test commands.');
+      showToast('Virtual ESP32 connected for test command', 'info');
+    }
+
+    try {
+      triggerHaptic('medium');
+      const res = await writeCharacteristicValue(payload);
+      showToast(res.message, res.success ? 'success' : 'error');
+      if (!cmd) setCustomBleCommand('');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to dispatch command', 'error');
+    }
+  };
+
+  const slotColors = ['#007aff', '#34c759', '#af52de'];
 
   return (
     <>
@@ -152,31 +225,469 @@ export function Dispenser() {
       {/* Medication Safety & Daily Intake Limit Tracker */}
       <DailyIntakeSummaryCard />
 
-      {/* Device Status */}
+      {/* Bluetooth Hardware & Telemetry Console */}
       <div className="ios-section">
-        <div className="ios-section-header">Device Status</div>
-        <div className="ios-device-card">
+        <div className="ios-section-header">Bluetooth Hardware & Telemetry</div>
+        <div className="ios-ble-card">
+          {/* Main Status Row */}
           <div className="ios-device-status-row">
             <div>
               <div className="ios-device-status-text">
-                <span className="ios-device-status-dot" style={{ backgroundColor: state.connected ? 'var(--ios-green)' : 'var(--ios-red)' }} />
-                {state.connected ? 'Connected' : 'Disconnected'}
+                <span
+                  className="ios-device-status-dot"
+                  style={{
+                    backgroundColor: state.connected
+                      ? state.connectionType === 'ble'
+                        ? 'var(--ios-green)'
+                        : 'var(--ios-blue)'
+                      : 'var(--ios-red)'
+                  }}
+                />
+                {state.connected
+                  ? state.connectionType === 'ble'
+                    ? 'Connected (BLE Active)'
+                    : 'Connected (Simulated)'
+                  : 'Disconnected'}
               </div>
               <div className="ios-device-status-meta">
-                {state.connected ? `${state.deviceId || 'ESP32'} · BLE Active` : 'Not Paired'}
+                {state.connected
+                  ? `${state.deviceId || 'ESP32_Test'} · GATT Active`
+                  : 'Target: ESP32_Test (41200547...)'}
               </div>
             </div>
             <div className="ios-device-status-right">
-              <div className="ios-device-status-text">{state.connected ? `${state.batteryLevel}%` : '—'}</div>
+              <div className="ios-device-status-text">
+                {state.connected ? `${state.batteryLevel}%` : '—'}
+              </div>
               <div className="ios-device-status-meta">Battery</div>
+            </div>
+          </div>
+
+          {/* Unsupported browser notice if needed */}
+          {!state.bluetoothSupported && (
+            <div className="ios-ble-notice">
+              <strong>Web Bluetooth unavailable in this browser.</strong> Use Chrome, Edge, or Bluefy (on iOS) for direct ESP32 Bluetooth pairing. You can also run in Simulated Mode below.
+            </div>
+          )}
+
+          {/* Connection Actions */}
+          {!state.connected ? (
+            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="ios-ble-btn primary"
+                  style={{ flex: 1 }}
+                  onClick={handleConnectBle}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5" />
+                  </svg>
+                  <span>Connect ESP32 (BLE)</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="ios-ble-btn"
+                  onClick={handleConnectSimulated}
+                  title="Simulate hardware without physical device"
+                >
+                  Simulate
+                </button>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ios-secondary)', cursor: 'pointer', marginTop: '2px' }}>
+                <input
+                  type="checkbox"
+                  checked={scanAllDevices}
+                  onChange={(e) => setScanAllDevices(e.target.checked)}
+                />
+                <span>Scan all nearby BLE devices (bypass name filter)</span>
+              </label>
+            </div>
+          ) : (
+            <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="ios-ble-btn danger"
+                onClick={() => {
+                  triggerHaptic('light');
+                  disconnect();
+                  showToast('Disconnected from hardware', 'info');
+                }}
+              >
+                Disconnect
+              </button>
+
+              <button
+                type="button"
+                className="ios-ble-btn"
+                onClick={handleReadBle}
+                disabled={state.isReading}
+                style={{ flex: 1 }}
+              >
+                {state.isReading && <IosSpinner size={13} color="var(--ios-label)" />}
+                <span>{state.isReading ? 'Reading…' : 'Read Characteristic from ESP32'}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Live Telemetry Readout */}
+          <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '0.5px solid var(--ios-separator)' }}>
+            <div className="ios-ble-card-header">
+              <span className="ios-ble-card-title">Characteristic Readout</span>
+              <span style={{ fontSize: '11px', color: 'var(--ios-secondary)', fontFamily: 'ui-monospace, monospace' }}>
+                UUID: {state.characteristicUuid.slice(0, 8)}…
+              </span>
+            </div>
+
+            <div className="ios-ble-telemetry-box">
+              <span>{state.lastReadValue || 'Waiting for read or incoming notification…'}</span>
+              {state.lastReadValue && (
+                <span className="ios-ble-tag rx" style={{ marginLeft: '8px' }}>
+                  RX
+                </span>
+              )}
+            </div>
+
+            <div className="ios-ble-meta-row">
+              <span>Last read: {state.lastReadTimestamp || 'Not read yet'}</span>
+              <span>Service: {state.serviceUuid.slice(0, 8)}…</span>
+            </div>
+          </div>
+
+          {/* Write Command Tool */}
+          <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '0.5px solid var(--ios-separator)' }}>
+            <div className="ios-ble-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="ios-ble-card-title">Send Command to ESP32</span>
+              <span className={`ios-badge ${state.connected ? (state.connectionType === 'ble' ? 'green' : 'blue') : 'orange'}`}>
+                {state.connected
+                  ? state.connectionType === 'ble'
+                    ? 'BLE Connected'
+                    : 'Virtual Connected'
+                  : 'Offline (Auto-links for test)'}
+              </span>
+            </div>
+
+            <div className="ios-ble-input-group">
+              <input
+                className="ios-ble-input"
+                placeholder={
+                  state.connected
+                    ? 'Bottle (1, 2, 3) or chain e.g. "123", "11"'
+                    : 'Bottle (1, 2, 3) or chain e.g. "123" (Auto-links virtual)'
+                }
+                value={customBleCommand}
+                onChange={(e) => setCustomBleCommand(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSendBleCommand();
+                  }
+                }}
+                disabled={state.isWriting}
+              />
+              <button
+                type="button"
+                className="ios-ble-btn primary"
+                onClick={() => handleSendBleCommand()}
+                disabled={state.isWriting || !customBleCommand.trim()}
+              >
+                {state.isWriting ? 'Sending…' : 'Send'}
+              </button>
+            </div>
+
+            <div style={{ fontSize: '11px', color: 'var(--ios-secondary)', marginTop: '5px', marginBottom: '8px', lineHeight: 1.4 }}>
+              Protocol: Send <strong>1</strong>, <strong>2</strong>, or <strong>3</strong> for Bottles 1–3. Concatenate digits (e.g. <code>123</code>, <code>11</code>) to chain multi-pill dispenses.
+            </div>
+
+            {/* Quick Command Chips */}
+            <div className="ios-ble-chips">
+              {[
+                { cmd: '1', label: 'Bottle 1 ("1")' },
+                { cmd: '2', label: 'Bottle 2 ("2")' },
+                { cmd: '3', label: 'Bottle 3 ("3")' },
+                { cmd: '11', label: '2x Bottle 1 ("11")' },
+                { cmd: '22', label: '2x Bottle 2 ("22")' },
+                { cmd: '33', label: '2x Bottle 3 ("33")' },
+                { cmd: '123', label: 'Chain 1-2-3 ("123")' },
+                { cmd: 'STATUS', label: 'STATUS' },
+                { cmd: 'PING', label: 'PING' },
+              ].map((item) => (
+                <button
+                  key={item.cmd}
+                  type="button"
+                  className="ios-ble-chip"
+                  disabled={state.isWriting}
+                  onClick={() => handleSendBleCommand(item.cmd)}
+                  title={`Send "${item.cmd}" command to ESP32`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Live Command Response readout */}
+            {state.lastReadValue && (
+              <div
+                style={{
+                  marginTop: '10px',
+                  background: 'var(--ios-fill)',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--ios-secondary)', whiteSpace: 'nowrap' }}>
+                    ESP32 Response:
+                  </span>
+                  <code style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ios-blue)', wordBreak: 'break-all' }}>
+                    {state.lastReadValue}
+                  </code>
+                </div>
+                <span style={{ fontSize: '10px', color: 'var(--ios-tertiary)', whiteSpace: 'nowrap' }}>
+                  {state.lastReadTimestamp}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Live Activity Console Stream */}
+          <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '0.5px solid var(--ios-separator)' }}>
+            <div className="ios-ble-card-header">
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => setShowBleConsole(!showBleConsole)}
+              >
+                <span className="ios-ble-card-title">Live Activity Console ({state.bleLogs.length})</span>
+                <span style={{ fontSize: '11px', color: 'var(--ios-secondary)' }}>
+                  {showBleConsole ? '▲ Hide' : '▼ Show'}
+                </span>
+              </button>
+
+              {state.bleLogs.length > 0 && showBleConsole && (
+                <button
+                  type="button"
+                  style={{ background: 'none', border: 'none', color: 'var(--ios-secondary)', fontSize: '11px', cursor: 'pointer' }}
+                  onClick={clearBleLogs}
+                >
+                  Clear Log
+                </button>
+              )}
+            </div>
+
+            {showBleConsole && (
+              <div className="ios-ble-console">
+                {state.bleLogs.length === 0 ? (
+                  <div style={{ color: '#64748b', fontStyle: 'italic', padding: '4px 0' }}>
+                    No Bluetooth events recorded yet. Connect or read to see live stream.
+                  </div>
+                ) : (
+                  state.bleLogs.map((log) => (
+                    <div key={log.id} className="ios-ble-log-entry">
+                      <span className="ios-ble-log-time">{log.time}</span>
+                      <span className={`ios-ble-tag ${log.direction}`}>{log.direction}</span>
+                      <span className="ios-ble-log-msg">{log.message}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Chained Multi-Pill Dispense Section */}
+      <div className="ios-section">
+        <div className="ios-section-header">Chained Multi-Pill Dispenser</div>
+        <div className="ios-ble-card">
+          <div style={{ marginBottom: '10px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--ios-label)' }}>
+              Queue Multiple Pills
+            </div>
+            <div style={{ fontSize: '12.5px', color: 'var(--ios-secondary)', marginTop: '2px', lineHeight: 1.4 }}>
+              Queue pills from Bottles 1–3 to transmit a single chained BLE command string (e.g. <code>123</code>, <code>11</code>) to the ESP32.
+            </div>
+          </div>
+
+          {/* Quick Bottle Add Buttons */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
+            {chambers.map((c, i) => {
+              const color = slotColors[i] || 'var(--ios-blue)';
+              return (
+                <button
+                  key={c.servoId}
+                  type="button"
+                  className="ios-ble-btn"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    padding: '8px 4px',
+                    border: '1px solid var(--ios-separator)',
+                    backgroundColor: 'var(--ios-fill)',
+                  }}
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setChainedQueue(prev => [...prev, c.servoId as 1 | 2 | 3]);
+                  }}
+                  disabled={state.isDispensing || c.currentCount === 0}
+                >
+                  <span style={{ fontSize: '14px', fontWeight: 700, color }}>
+                    + Bottle {c.servoId}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--ios-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%' }}>
+                    {c.medicationName || '(Unset)'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Queue Pill Badges Container */}
+          <div
+            style={{
+              padding: '10px 12px',
+              borderRadius: '10px',
+              backgroundColor: 'var(--ios-background)',
+              border: '0.5px solid var(--ios-separator)',
+              minHeight: '46px',
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '6px',
+            }}
+          >
+            {chainedQueue.length === 0 ? (
+              <span style={{ fontSize: '13px', color: 'var(--ios-tertiary)', fontStyle: 'italic' }}>
+                Tap "+ Bottle 1/2/3" above to queue pills into a chained command.
+              </span>
+            ) : (
+              chainedQueue.map((bottleId, idx) => {
+                const ch = chambers.find(c => c.servoId === bottleId);
+                const color = slotColors[bottleId - 1] || 'var(--ios-blue)';
+                return (
+                  <span
+                    key={idx}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      backgroundColor: 'var(--ios-fill)',
+                      border: `1px solid ${color}50`,
+                      borderRadius: '16px',
+                      padding: '3px 8px 3px 10px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span style={{ color }}>● #{bottleId}</span>
+                    <span style={{ color: 'var(--ios-label)', maxWidth: '85px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ch?.medicationName || `Bottle ${bottleId}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('light');
+                        setChainedQueue(prev => prev.filter((_, i) => i !== idx));
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--ios-secondary)',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        padding: '0 2px',
+                        lineHeight: 1,
+                      }}
+                      title="Remove from chain"
+                    >
+                      <XIcon size={14} color="var(--ios-secondary)" />
+                    </button>
+                  </span>
+                );
+              })
+            )}
+          </div>
+
+          {/* Live Command Payload Preview & Actions */}
+          {chainedQueue.length > 0 && (
+            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--ios-secondary)' }}>
+                  BLE Payload to Device:
+                </span>
+                <code style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ios-blue)', background: 'var(--ios-fill)', padding: '2px 8px', borderRadius: '6px' }}>
+                  "{chainedQueue.join('')}" ({chainedQueue.length} pill{chainedQueue.length > 1 ? 's' : ''})
+                </code>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="ios-ble-btn danger"
+                  onClick={() => {
+                    triggerHaptic('selection');
+                    setChainedQueue([]);
+                  }}
+                  disabled={state.isDispensing}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="ios-ble-btn primary"
+                  style={{ flex: 1 }}
+                  onClick={handleExecuteChain}
+                  disabled={state.isDispensing}
+                >
+                  {state.isDispensing ? 'Dispensing Chain…' : `Dispense Chained Sequence ("${chainedQueue.join('')}")`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Chained Presets */}
+          <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '0.5px solid var(--ios-separator)' }}>
+            <span style={{ fontSize: '11px', color: 'var(--ios-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+              Quick Chained Presets:
+            </span>
+            <div className="ios-ble-chips" style={{ marginTop: '6px' }}>
+              {[
+                { label: 'All 3 ("123")', seq: [1, 2, 3] as (1 | 2 | 3)[] },
+                { label: '2x Bottle 1 ("11")', seq: [1, 1] as (1 | 2 | 3)[] },
+                { label: '2x Bottle 2 ("22")', seq: [2, 2] as (1 | 2 | 3)[] },
+                { label: '2x Bottle 3 ("33")', seq: [3, 3] as (1 | 2 | 3)[] },
+                { label: 'Bottles 1 & 2 ("12")', seq: [1, 2] as (1 | 2 | 3)[] },
+                { label: 'Bottles 2 & 3 ("23")', seq: [2, 3] as (1 | 2 | 3)[] },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  className="ios-ble-chip"
+                  onClick={() => {
+                    triggerHaptic('selection');
+                    setChainedQueue(p.seq);
+                  }}
+                  disabled={state.isDispensing}
+                  title={`Queue ${p.label}`}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4 Servo Slots Group */}
+      {/* Medication Bottles Group */}
       <div className="ios-section">
-        <div className="ios-section-header">Medication Chambers</div>
+        <div className="ios-section-header">Medication Bottles</div>
         <div className="ios-list">
           {chambers.map((c, i) => {
             const isConfigured = Boolean(c.medicationName.trim());
@@ -185,6 +696,7 @@ export function Dispenser() {
             const isCurrent = state.isDispensing && state.activeServo === c.servoId;
             const dosesTakenToday = medicationSafetyService.getSlotDailyDoseCount(c.servoId, logs);
             const dailyLimit = c.maxDailyDoses;
+            const countToDispense = dispenseCounts[c.servoId] || 1;
 
             return (
               <div key={c.servoId} className="ios-row with-icon">
@@ -205,18 +717,18 @@ export function Dispenser() {
                       </>
                     ) : (
                       <span style={{ color: 'var(--ios-secondary)', fontWeight: 500 }}>
-                        Slot {c.servoId} (Unassigned)
+                        Bottle {c.servoId} (Unassigned)
                       </span>
                     )}
                   </div>
                   <div className="ios-row-sublabel">
                     {isConfigured ? (
                       <>
-                        {c.currentCount} of {c.maxCapacity} remaining
-                        {dailyLimit ? ` · Max ${dailyLimit}/day (${dosesTakenToday} taken today)` : ''}
+                        {c.currentCount} of {c.maxCapacity} remaining · Bottle {c.servoId}
+                        {dailyLimit ? ` · Max ${dailyLimit}/day (${dosesTakenToday} taken)` : ''}
                       </>
                     ) : (
-                      'Tap Edit or Scan Rx to configure'
+                      `Bottle ${c.servoId} · Tap Edit or Scan Rx to configure`
                     )}
                   </div>
                 </div>
@@ -236,13 +748,78 @@ export function Dispenser() {
                     <span className="ios-badge green">Ready</span>
                   )}
 
+                  {/* Quantity Stepper for Multi-Pill Dispense */}
+                  {isConfigured && !isEmpty && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        backgroundColor: 'var(--ios-fill)',
+                        borderRadius: '8px',
+                        padding: '2px 4px',
+                        gap: '2px',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: '0 4px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: 'var(--ios-label)',
+                        }}
+                        onClick={() => {
+                          triggerHaptic('light');
+                          setDispenseCounts(prev => ({
+                            ...prev,
+                            [c.servoId]: Math.max(1, (prev[c.servoId] || 1) - 1)
+                          }));
+                        }}
+                        disabled={state.isDispensing || countToDispense <= 1}
+                        title="Decrease pills"
+                      >
+                        −
+                      </button>
+                      <span style={{ fontSize: '12px', fontWeight: 700, minWidth: '14px', textAlign: 'center' }}>
+                        {countToDispense}
+                      </span>
+                      <button
+                        type="button"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: '0 4px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: 'var(--ios-label)',
+                        }}
+                        onClick={() => {
+                          triggerHaptic('light');
+                          setDispenseCounts(prev => ({
+                            ...prev,
+                            [c.servoId]: Math.min(Math.min(5, c.currentCount), (prev[c.servoId] || 1) + 1)
+                          }));
+                        }}
+                        disabled={state.isDispensing || countToDispense >= Math.min(5, c.currentCount)}
+                        title="Increase pills"
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
+
                   <button
                     className="ios-nav-action"
                     onClick={() => handleDispense(c)}
                     disabled={state.isDispensing || !isConfigured || isEmpty}
+                    title={`Dispense ${countToDispense} pill${countToDispense > 1 ? 's' : ''} (sends "${String(c.servoId).repeat(countToDispense)}")`}
                   >
                     {isCurrent && <IosSpinner size={13} color="var(--ios-blue)" />}
-                    {isCurrent ? 'Moving…' : 'Dispense'}
+                    {isCurrent ? 'Moving…' : `Dispense${countToDispense > 1 ? ` (${countToDispense})` : ''}`}
                   </button>
 
                   <button
@@ -260,7 +837,7 @@ export function Dispenser() {
           })}
         </div>
         <div className="ios-section-footer">
-          Each chamber is monitored for active ingredient cumulative intake limits.
+          Each bottle transmits command 1, 2, or 3 over BLE. Multiple pills send chained digits.
         </div>
       </div>
 
@@ -367,7 +944,7 @@ function SlotEditSheet({
       activeIngredients: ingredients,
       maxDailyDoses: limit,
     });
-    showToast(`Slot ${chamber.servoId} updated`, 'success');
+    showToast(`Bottle ${chamber.servoId} updated`, 'success');
     onClose();
   };
 
@@ -381,12 +958,12 @@ function SlotEditSheet({
     triggerHaptic('success');
     refillChamber(chamber.servoId, capacity);
     setCount(capacity);
-    showToast(`Slot ${chamber.servoId} fully refilled`, 'success');
+    showToast(`Bottle ${chamber.servoId} fully refilled`, 'success');
   };
 
   return (
     <IosSheet
-      title={`Configure Slot ${chamber.servoId}`}
+      title={`Configure Bottle ${chamber.servoId}`}
       leftActionText="Cancel"
       onLeftAction={onClose}
       rightActionText="Done"

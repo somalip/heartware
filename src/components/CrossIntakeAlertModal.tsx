@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { DispenseSafetyEvaluation } from '../types';
+import { MedicationSafetyInfoModal } from './MedicationSafetyInfoModal';
 import { triggerHaptic } from '../utils/haptics';
+import { AlertTriangleIcon, InfoIcon } from './Icons';
 
 interface Props {
   evaluation: DispenseSafetyEvaluation;
@@ -18,12 +20,14 @@ export const CrossIntakeAlertModal: React.FC<Props> = ({
   onConfirmOverride,
 }) => {
   const isHardBlocked = evaluation.hardBlocked;
+  const [showSafetyInfo, setShowSafetyInfo] = useState(false);
 
   return (
-    <div className="ios-sheet-backdrop" style={{ zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div className="ios-alert-dialog" role="dialog" aria-modal="true">
-        <div className="ios-alert-icon-container">
-          <div className="ios-alert-danger-icon">⚠️</div>
+    <>
+      <div className="ios-sheet-backdrop" style={{ zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="ios-alert-dialog" role="dialog" aria-modal="true">
+          <div className="ios-alert-icon-container">
+          <AlertTriangleIcon size={32} color="var(--ios-orange)" />
         </div>
 
         <h3 className="ios-alert-title">
@@ -67,6 +71,28 @@ export const CrossIntakeAlertModal: React.FC<Props> = ({
           <p className="ios-alert-subtext">
             Taking multiple medications with the same active ingredient (such as DayQuil and Tylenol) is a leading cause of accidental toxicity.
           </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic('light');
+              setShowSafetyInfo(true);
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '4px 0',
+              color: 'var(--ios-blue)',
+              fontSize: '12px',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'block',
+              marginTop: '4px',
+              fontWeight: 500,
+            }}
+          >
+            <InfoIcon size={14} color="var(--ios-blue)" /> How is this limit calculated? View public clinical standards →
+          </button>
         </div>
 
         <div className="ios-alert-actions-vertical">
@@ -94,5 +120,10 @@ export const CrossIntakeAlertModal: React.FC<Props> = ({
         </div>
       </div>
     </div>
+
+    {showSafetyInfo && (
+      <MedicationSafetyInfoModal onClose={() => setShowSafetyInfo(false)} />
+    )}
+  </>
   );
 };

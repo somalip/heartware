@@ -110,7 +110,7 @@ export function Schedule() {
                       )}
                     </div>
                     <div className="ios-row-sublabel">
-                      {s.dosage} · Slot {s.chamberId} {chamber ? `(${chamber.currentCount} left)` : ''}
+                      {s.dosage} · Bottle {s.chamberId} {chamber ? `(${chamber.currentCount} left)` : ''}
                       {s.instructions ? ` · ${s.instructions}` : ''}
                     </div>
                     {ingredients && ingredients.length > 0 && (
@@ -219,10 +219,10 @@ function AddScheduleSheet({
     >
       <form onSubmit={handleSubmit}>
         <div className="ios-section">
-          <div className="ios-section-header">Target Chamber</div>
+          <div className="ios-section-header">Target Bottle</div>
           <div className="ios-list">
             <div className="ios-row">
-              <div className="ios-detail-label">Servo Chamber</div>
+              <div className="ios-detail-label">Dispenser Bottle</div>
               <select
                 className="ios-input"
                 value={chamberId}
@@ -230,7 +230,7 @@ function AddScheduleSheet({
               >
                 {chambers.map((c) => (
                   <option key={c.servoId} value={c.servoId}>
-                    Slot {c.servoId}: {c.medicationName ? `${c.medicationName} (${c.pillStrength || 'standard'})` : 'Unassigned'}
+                    Bottle {c.servoId}: {c.medicationName ? `${c.medicationName} (${c.pillStrength || 'standard'})` : 'Unassigned'}
                   </option>
                 ))}
               </select>
