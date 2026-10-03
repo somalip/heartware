@@ -7,12 +7,17 @@ export const DailyIntakeSummaryCard: React.FC = () => {
   const { chambers, logs } = useMedication();
   const [expanded, setExpanded] = useState(false);
 
+  // If user has no active configured medications in any chamber, completely hide
+  const hasConfiguredChambers = chambers.some((c) => c.medicationName.trim().length > 0);
+  if (!hasConfiguredChambers) {
+    return null;
+  }
+
   const conflicts = medicationSafetyService.checkChamberConflicts(chambers);
   const intakeList = medicationSafetyService.calculateDailyIntake(logs, chambers);
 
-  // If no configured chambers and no logs, don't clutter UI
-  const hasConfiguredChambers = chambers.some((c) => c.medicationName.trim().length > 0);
-  if (!hasConfiguredChambers && intakeList.length === 0) {
+  // If no conflicts between assigned medications and no doses taken today, do not render
+  if (conflicts.length === 0 && intakeList.length === 0) {
     return null;
   }
 
@@ -20,17 +25,19 @@ export const DailyIntakeSummaryCard: React.FC = () => {
     <div className="ios-section safety-summary-section">
       <div className="ios-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Medication Safety & Daily Limits</span>
-        <button
-          type="button"
-          className="ios-text-button"
-          onClick={() => {
-            triggerHaptic('light');
-            setExpanded(!expanded);
-          }}
-          style={{ fontSize: '13px', color: 'var(--ios-blue)', background: 'none', border: 'none', cursor: 'pointer' }}
-        >
-          {expanded ? 'Show Less' : 'Details'}
-        </button>
+        {intakeList.length > 0 && (
+          <button
+            type="button"
+            className="ios-text-button"
+            onClick={() => {
+              triggerHaptic('light');
+              setExpanded(!expanded);
+            }}
+            style={{ fontSize: '13px', color: 'var(--ios-blue)', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            {expanded ? 'Show Less' : 'Details'}
+          </button>
+        )}
       </div>
 
       {/* Cross-Intake Conflict Warning Banner */}
@@ -49,21 +56,9 @@ export const DailyIntakeSummaryCard: React.FC = () => {
       )}
 
       {/* Active Ingredients 24h Intake Meters */}
-      <div className="ios-list">
-        {intakeList.length === 0 ? (
-          <div className="ios-row">
-            <div className="ios-row-content">
-              <div className="ios-row-label" style={{ color: 'var(--ios-secondary)' }}>
-                No active ingredient intake recorded in last 24h
-              </div>
-              <div className="ios-row-sublabel">
-                Limits are automatically monitored when doses are dispensed
-              </div>
-            </div>
-            <span className="ios-badge green">All Clear</span>
-          </div>
-        ) : (
-          intakeList.map((item) => {
+      {intakeList.length > 0 && (
+        <div className="ios-list">
+          {intakeList.map((item) => {
             const badgeClass =
               item.status === 'exceeded' ? 'red' : item.status === 'warning' ? 'orange' : 'green';
 
@@ -108,9 +103,9 @@ export const DailyIntakeSummaryCard: React.FC = () => {
                 )}
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
       <div className="ios-section-footer">
         Heartware tracks active ingredients across all 4 dispenser slots to prevent cumulative overdose (e.g. DayQuil + Tylenol).
