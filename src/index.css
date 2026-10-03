@@ -1,0 +1,84 @@
+:root {
+  color-scheme: light dark;
+  --fg: #111;
+  --bg: #fff;
+  --mute: #8a8a8a;
+  --line: #ececec;
+  --danger: #c4231b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #ededed;
+    --bg: #111;
+    --mute: #7a7a7a;
+    --line: #262626;
+    --danger: #ff6b5e;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 56px 20px 96px;
+}
+
+h1 { font-size: 15px; font-weight: 600; margin: 0; }
+h2 { font-size: 13px; font-weight: 400; color: var(--mute); margin: 44px 0 12px; }
+p { margin: 0 0 6px; }
+
+nav { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 20px; }
+nav button { text-decoration: none; color: var(--mute); }
+nav button[aria-current="page"] { color: var(--fg); }
+
+button {
+  font: inherit;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 4px;
+}
+button:hover { text-decoration-color: currentColor; }
+button:disabled { color: var(--mute); cursor: default; text-decoration: none; }
+button + button, a + a, button + a, a + button { margin-left: 18px; }
+
+a { color: inherit; text-underline-offset: 4px; text-decoration-color: var(--line); }
+
+ul { list-style: none; padding: 0; margin: 0; }
+li { padding: 14px 0; border-top: 1px solid var(--line); }
+li:last-child { border-bottom: 1px solid var(--line); }
+
+form { margin: 8px 0 0; }
+label { display: block; margin: 0 0 14px; font-size: 13px; color: var(--mute); }
+input, select {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: 15px;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 6px 0;
+}
+input:focus, select:focus { outline: none; border-bottom-color: var(--fg); }
+
+pre { font: 13px/1.6 ui-monospace, Menlo, monospace; margin: 0; white-space: pre-wrap; }
+
+.mute { color: var(--mute); }
+.danger { color: var(--danger); }
