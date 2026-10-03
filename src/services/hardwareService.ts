@@ -3,20 +3,20 @@ import { HardwareState, ChamberConfig } from '../types';
 export const INITIAL_HARDWARE: HardwareState = {
   connected: false,
   connectionType: 'simulated',
-  deviceId: 'ESP32-SIM',
-  batteryLevel: 100,
+  deviceId: '',
+  batteryLevel: 0,
   signalRssi: 0,
   lastHeartbeat: new Date().toISOString(),
   isDispensing: false,
   activeServo: null,
   oledText: {
     line1: "HEARTWARE",
-    line2: "NOT CONNECTED",
-    line3: "",
-    line4: ""
+    line2: "OFFLINE",
+    line3: "READY TO PAIR",
+    line4: "BLE: DISCONNECTED"
   },
   buzzerEnabled: true,
-  ledRingColor: '#20a782'
+  ledRingColor: '#8e8e93'
 };
 
 class HardwareManager {

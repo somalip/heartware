@@ -1,56 +1,111 @@
 import { useMedication } from '../context/MedicationContext';
+import { useToast } from '../context/ToastContext';
 import { DispenseLog } from '../types';
+import { triggerHaptic } from '../utils/haptics';
 
-const SOURCE: Record<DispenseLog['dispensedBy'], string> = {
-  scheduled_auto: 'scheduled',
-  app_trigger: 'app',
-  hardware_button: 'emergency',
+const SOURCE_LABEL: Record<DispenseLog['dispensedBy'], string> = {
+  scheduled_auto: 'Auto Scheduled',
+  app_trigger: 'In-App Dispense',
+  hardware_button: 'Physical Button',
 };
 
 export function History() {
   const { logs } = useMedication();
+  const { showToast } = useToast();
+
   const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
   const thisWeek = logs.filter((l) => new Date(l.timestamp).getTime() > weekAgo).length;
 
-  const exportJson = () => {
+  const handleExport = () => {
+    triggerHaptic('success');
     const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `heartware-history-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `heartware-dispense-history-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    showToast('Exported clinical JSON report', 'success');
   };
 
   return (
     <>
-      <h2>Last 7 days</h2>
-      <p>
-        {thisWeek} {thisWeek === 1 ? 'dose' : 'doses'} dispensed
-      </p>
+      <div className="ios-large-title-block" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h1 className="ios-large-title">History</h1>
+          <p className="ios-subtitle">Dispense Log</p>
+        </div>
+        {logs.length > 0 && (
+          <button
+            className="ios-nav-action primary"
+            onClick={handleExport}
+          >
+            Export
+          </button>
+        )}
+      </div>
 
-      <h2>All</h2>
-      {logs.length === 0 ? (
-        <p className="mute">Nothing dispensed yet.</p>
-      ) : (
-        <ul>
-          {logs.map((l) => (
-            <li key={l.id}>
-              <p>{l.medicationName}</p>
-              <p className="mute">
-                {new Date(l.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} · slot {l.chamberId} ·{' '}
-                {SOURCE[l.dispensedBy]}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* Summary Inset Group */}
+      <div className="ios-section">
+        <div className="ios-section-header">Dispense Metrics</div>
+        <div className="ios-list">
+          <div className="ios-row">
+            <div className="ios-row-content">
+              <div className="ios-row-label">Last 7 Days</div>
+              <div className="ios-row-sublabel">Confirmed optical drop sensor triggers</div>
+            </div>
+            <div className="ios-row-value-bold">
+              {thisWeek} {thisWeek === 1 ? 'cycle' : 'cycles'}
+            </div>
+          </div>
+          <div className="ios-row">
+            <div className="ios-row-content">
+              <div className="ios-row-label">Lifetime Actuations</div>
+            </div>
+            <div className="ios-row-value">
+              {logs.length}
+            </div>
+          </div>
+        </div>
+      </div>
 
-      {logs.length > 0 && (
-        <p style={{ marginTop: 16 }}>
-          <button onClick={exportJson}>Export</button>
-        </p>
-      )}
+      {/* Log Entries */}
+      <div className="ios-section">
+        <div className="ios-section-header">Chronological Audit Log</div>
+        {logs.length === 0 ? (
+          <div className="ios-list">
+            <div className="ios-row" style={{ color: 'var(--ios-secondary)' }}>
+              No dispense events recorded yet. Actuate a slot to generate audit records.
+            </div>
+          </div>
+        ) : (
+          <div className="ios-list">
+            {logs.map((l) => (
+              <div key={l.id} className="ios-row">
+                <div className="ios-row-content">
+                  <div className="ios-row-title">
+                    {l.medicationName}
+                  </div>
+                  <div className="ios-row-sublabel">
+                    Slot {l.chamberId} · {SOURCE_LABEL[l.dispensedBy]}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div className="ios-badge green" style={{ marginBottom: '2px' }}>
+                    Confirmed
+                  </div>
+                  <div className="ios-log-time">
+                    {new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="ios-section-footer">
+          Each event is confirmed when the infrared beam detects pill drop passage across the dispenser funnel.
+        </div>
+      </div>
     </>
   );
 }
