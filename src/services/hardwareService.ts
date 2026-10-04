@@ -13,6 +13,12 @@ export const INITIAL_HARDWARE: HardwareState = {
   lastHeartbeat: new Date().toISOString(),
   isDispensing: false,
   activeServo: null,
+  lcdText: {
+    line1: "HEARTWARE",
+    line2: "OFFLINE",
+    line3: "READY TO PAIR",
+    line4: "BLE: DISCONNECTED"
+  },
   oledText: {
     line1: "HEARTWARE",
     line2: "OFFLINE",
@@ -395,7 +401,16 @@ class HardwareManager {
         const parts = value.split(':');
         const slot = parts[1] || '1';
         const deg = parts[2] || '90';
-        simulatedAck = `ACK:CALIBRATE:BOTTLE_${slot}_${deg}DEG_OK`;
+        const speed = parts[3];
+        simulatedAck = speed
+          ? `ACK:CALIBRATE:BOTTLE_${slot}_${deg}DEG_SPEED_${speed}MS_OK`
+          : `ACK:CALIBRATE:BOTTLE_${slot}_${deg}DEG_OK`;
+      } else if (value.startsWith('CONFIG:SERVO:')) {
+        const parts = value.split(':');
+        const slot = parts[2] || '1';
+        const deg = parts[3] || '90';
+        const speed = parts[4] || '10';
+        simulatedAck = `ACK:CONFIG:BOTTLE_${slot}_ANGLE_${deg}_SPEED_${speed}_OK`;
       } else if (value === 'HEARTWARE:READY') {
         simulatedAck = 'ACK:HEARTWARE:READY:ONLINE';
       }
@@ -433,6 +448,20 @@ class HardwareManager {
     this.addLog('info', msg);
     this.notify();
     return { success: true, message: msg };
+  }
+
+  // Set simulated battery level for QA & UI testing
+  setSimulatedBatteryLevel(level: number) {
+    this.state.batteryLevel = Math.max(0, Math.min(100, Math.round(level)));
+    this.addLog('info', `Battery level set to ${this.state.batteryLevel}% (test override)`);
+    this.notify();
+  }
+
+  // Toggle hardware buzzer status
+  setBuzzerEnabled(enabled: boolean) {
+    this.state.buzzerEnabled = enabled;
+    this.addLog('info', `Hardware buzzer ${enabled ? 'enabled' : 'disabled'} (test override)`);
+    this.notify();
   }
 
   // Handle disconnection event
@@ -578,26 +607,38 @@ class HardwareManager {
   }
 
   // Test servo movement calibration over BLE
-  async testCalibrateServo(servoId: number, angle: number): Promise<string> {
-    const command = `CALIBRATE:${servoId}:${angle}`;
-    this.addLog('info', `Calibrating Servo #${servoId} to ${angle}°...`);
+  async testCalibrateServo(servoId: number, angle: number, speedMs?: number): Promise<string> {
+    const speed = speedMs ?? 10;
+    const command = `CALIBRATE:${servoId}:${angle}:${speed}`;
+    this.addLog('info', `Calibrating Servo #${servoId} to ${angle}° at ${speed}ms/step...`);
 
     if (this.state.connected) {
       await this.writeCharacteristicValue(command);
     }
 
     this.state.oledText.line1 = `CALIBRATE SERVO #${servoId}`;
-    this.state.oledText.line2 = `TESTING ANGLE: ${angle}°`;
-    this.state.oledText.line3 = "SWEEPING 0° -> TARGET";
+    this.state.oledText.line2 = `TEST: ${angle}° @ ${speed}ms`;
+    this.state.oledText.line3 = `SWEEPING 0° -> ${angle}°`;
     this.notify();
 
-    await new Promise(res => setTimeout(res, 1000));
+    // Duration based on angle and speed delay
+    const durationMs = Math.max(600, Math.round((angle / 3) * speed * 2 + 250));
+    await new Promise(res => setTimeout(res, durationMs));
 
-    this.state.oledText.line1 = `SERVO #${servoId} CALIBRATED`;
+    this.state.oledText.line1 = `SERVO #${servoId} READY`;
     this.state.oledText.line2 = `REST: 0° | DISP: ${angle}°`;
+    this.state.oledText.line3 = `SPEED: ${speed}ms/step`;
     this.notify();
 
-    return `Servo ${servoId} calibrated to ${angle} degrees.`;
+    return `Servo ${servoId} tested at ${angle}° with ${speed}ms/step speed.`;
+  }
+
+  // Sync servo calibration parameters to hardware without moving
+  async syncServoConfig(servoId: number, angle: number, speedMs: number): Promise<void> {
+    const command = `CONFIG:SERVO:${servoId}:${angle}:${speedMs}`;
+    if (this.state.connected) {
+      await this.writeCharacteristicValue(command);
+    }
   }
 }
 

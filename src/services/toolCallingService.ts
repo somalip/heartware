@@ -282,7 +282,9 @@ class ToolCallingService {
               maxDailyDoses: c.maxDailyDoses,
             })),
             activeSchedulesCount: schedules.filter(s => s.active).length,
-            oledStatus: hwState.oledText,
+            lcdStatus: hwState.lcdText || hwState.oledText,
+            displayStatus: hwState.lcdText || hwState.oledText,
+            oledStatus: hwState.oledText || hwState.lcdText,
           };
           break;
         }

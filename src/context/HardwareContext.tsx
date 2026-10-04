@@ -12,7 +12,10 @@ interface HardwareContextType {
   clearBleLogs: () => void;
   triggerDispense: (chamber: ChamberConfig, count?: number) => Promise<{ success: boolean; message: string; response?: string }>;
   triggerChainedDispense: (sequence: (1 | 2 | 3)[], bottleNames?: Record<number, string>) => Promise<{ success: boolean; message: string; response?: string }>;
-  testCalibrateServo: (servoId: number, angle: number) => Promise<string>;
+  testCalibrateServo: (servoId: number, angle: number, speed?: number) => Promise<string>;
+  syncServoConfig: (servoId: number, angle: number, speedMs: number) => Promise<void>;
+  setSimulatedBatteryLevel: (level: number) => void;
+  setBuzzerEnabled: (enabled: boolean) => void;
 }
 
 const HardwareContext = createContext<HardwareContextType | undefined>(undefined);
@@ -59,8 +62,20 @@ export const HardwareProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return await hardwareService.triggerChainedDispense(sequence, bottleNames);
   };
 
-  const testCalibrateServo = async (servoId: number, angle: number) => {
-    return await hardwareService.testCalibrateServo(servoId, angle);
+  const testCalibrateServo = async (servoId: number, angle: number, speed?: number) => {
+    return await hardwareService.testCalibrateServo(servoId, angle, speed);
+  };
+
+  const syncServoConfig = async (servoId: number, angle: number, speedMs: number) => {
+    await hardwareService.syncServoConfig(servoId, angle, speedMs);
+  };
+
+  const setSimulatedBatteryLevel = (level: number) => {
+    hardwareService.setSimulatedBatteryLevel(level);
+  };
+
+  const setBuzzerEnabled = (enabled: boolean) => {
+    hardwareService.setBuzzerEnabled(enabled);
   };
 
   return (
@@ -75,7 +90,10 @@ export const HardwareProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         clearBleLogs,
         triggerDispense,
         triggerChainedDispense,
-        testCalibrateServo
+        testCalibrateServo,
+        syncServoConfig,
+        setSimulatedBatteryLevel,
+        setBuzzerEnabled,
       }}
     >
       {children}

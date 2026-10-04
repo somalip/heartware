@@ -99,7 +99,7 @@ I need immediate assistance or a check-in.`;
             {contact?.name || 'No contact name specified'}
           </div>
           <div style={{ fontSize: '13px', color: hasContact ? 'var(--ios-label)' : 'var(--ios-red)', marginTop: '2px' }}>
-            {contact?.phone || '⚠️ No phone number saved in Settings'}
+            {contact?.phone || 'No phone number saved in Settings'}
           </div>
         </div>
 

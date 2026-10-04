@@ -40,6 +40,7 @@ export interface ChamberConfig {
   maxCapacity: number;
   servoAngleRest: number;
   servoAngleDispense: number;
+  servoSpeed?: number; // Step delay in ms (e.g. 5ms = fast, 20ms = slow)
   colorTag: string;
   status: 'ready' | 'low' | 'empty' | 'jammed' | 'dispensing';
   slotLabel: string;
@@ -137,6 +138,7 @@ export interface HardwareState {
   lastHeartbeat: string;
   isDispensing: boolean;
   activeServo: number | null;
+  lcdText: { line1: string; line2: string; line3: string; line4: string };
   oledText: { line1: string; line2: string; line3: string; line4: string };
   buzzerEnabled: boolean;
   ledRingColor: string;

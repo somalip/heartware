@@ -418,9 +418,9 @@ export function Dispenser() {
             </div>
           </div>
 
-          {/* Hardware OLED Screen Live Monitor */}
+          {/* Hardware LCD Screen Live Monitor */}
           <div className="ios-section">
-            <div className="ios-section-header">ESP32 OLED Display (128x64)</div>
+            <div className="ios-section-header">ESP32 LCD Display (1.47" 320x172)</div>
             <div style={{
               background: '#0a0d14',
               borderRadius: '12px',
@@ -442,23 +442,23 @@ export function Dispenser() {
                 textTransform: 'uppercase',
               }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span>♥</span> HEARTWARE OLED
+                  <span>♥</span> HEARTWARE LCD
                 </span>
                 <span style={{ color: state.connected ? '#4ade80' : '#f87171' }}>
                   {state.connected ? '● BLE' : '○ NO LINK'}
                 </span>
               </div>
               <div style={{ fontSize: '13px', fontWeight: 600, minHeight: '18px', color: state.isDispensing ? '#facc15' : '#38bdf8' }}>
-                {state.oledText.line1 || 'HEARTWARE v2.4'}
+                {state.oledText?.line1 || (state as any).lcdText?.line1 || 'HEARTWARE v2.4'}
               </div>
               <div style={{ fontSize: '12px', minHeight: '17px', color: state.isDispensing ? '#ffffff' : '#93c5fd', marginTop: '2px' }}>
-                {state.oledText.line2 || 'STATUS: READY'}
+                {state.oledText?.line2 || (state as any).lcdText?.line2 || 'STATUS: READY'}
               </div>
               <div style={{ fontSize: '11px', minHeight: '16px', color: '#7dd3fc', marginTop: '2px' }}>
-                {state.oledText.line3 || 'CHAMBERS: 1, 2, 3 OK'}
+                {state.oledText?.line3 || (state as any).lcdText?.line3 || 'CHAMBERS: 1, 2, 3 OK'}
               </div>
               <div style={{ fontSize: '10px', minHeight: '15px', color: '#38bdf8', opacity: 0.8, marginTop: '2px' }}>
-                {state.oledText.line4 || 'STANDBY'}
+                {state.oledText?.line4 || (state as any).lcdText?.line4 || 'STANDBY'}
               </div>
             </div>
           </div>
@@ -527,6 +527,7 @@ function SlotEditSheet({
   const [strength, setStrength] = useState(chamber.pillStrength);
   const [capacity, setCapacity] = useState(chamber.maxCapacity);
   const [angle, setAngle] = useState(chamber.servoAngleDispense);
+  const [speed, setSpeed] = useState(chamber.servoSpeed ?? 10);
   const [count, setCount] = useState(chamber.currentCount);
   const [activeIngredients, setActiveIngredients] = useState<ActiveIngredient[]>(
     chamber.activeIngredients || []
@@ -569,6 +570,7 @@ function SlotEditSheet({
       pillStrength: strength,
       maxCapacity: capacity,
       servoAngleDispense: angle,
+      servoSpeed: speed,
       currentCount: count,
       activeIngredients: ingredients,
       maxDailyDoses: limit,
@@ -766,24 +768,55 @@ function SlotEditSheet({
         </div>
 
         <div className="ios-section">
-          <div className="ios-section-header">Calibration</div>
+          <div className="ios-section-header">Servo Calibration</div>
           <div className="ios-list">
             <div className="ios-row">
               <div className="ios-row-content">
-                <div className="ios-row-label">Dispense angle</div>
+                <div className="ios-row-label">Dispense Angle</div>
+                <div className="ios-row-sublabel">Sweep angle to drop pill</div>
               </div>
               <div className="ios-row-value-bold">{angle}°</div>
             </div>
             <div className="ios-row">
               <input
                 type="range"
-                min="45"
+                min="30"
                 max="180"
-                step="5"
+                step="1"
                 value={angle}
                 onChange={(e) => setAngle(Number(e.target.value))}
                 className="ios-range-input"
               />
+            </div>
+
+            <div className="ios-row">
+              <div className="ios-row-content">
+                <div className="ios-row-label">Movement Speed</div>
+                <div className="ios-row-sublabel">
+                  {speed <= 4 ? 'Turbo' : speed <= 8 ? 'Fast' : speed <= 15 ? 'Balanced' : 'Gentle'}
+                </div>
+              </div>
+              <div className="ios-row-value-bold">{speed}ms/step</div>
+            </div>
+            <div className="ios-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                step="5"
+                value={Math.round(100 - ((speed - 3) / 27) * 90)}
+                onChange={(e) => {
+                  const pct = Number(e.target.value);
+                  const calcMs = Math.max(2, Math.min(30, Math.round(30 - ((pct - 10) / 90) * 27)));
+                  setSpeed(calcMs);
+                }}
+                className="ios-range-input"
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--ios-secondary)' }}>
+                <span>Gentle (Slow)</span>
+                <span>Normal</span>
+                <span>Fast (Quick)</span>
+              </div>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
  * Safe haptic feedback triggers for mobile devices.
  * Uses Web Vibration API when available (supported in Chrome/Android and PWAs, gracefully no-op on Safari/iOS browsers).
  */
-export function triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'selection' | 'success' | 'warning' = 'light') {
+export function triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'selection' | 'success' | 'warning' | 'error' = 'light') {
   if (typeof window === 'undefined' || !navigator.vibrate) return;
   try {
     switch (type) {
@@ -21,6 +21,9 @@ export function triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'selection' |
         break;
       case 'warning':
         navigator.vibrate([20, 60, 20, 60, 20]);
+        break;
+      case 'error':
+        navigator.vibrate([40, 80, 40, 80]);
         break;
     }
   } catch {

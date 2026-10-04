@@ -15,6 +15,7 @@ const emptyBottle = (servoId: 1 | 2 | 3 | 4 = 1): ChamberConfig => ({
   maxCapacity: 30,
   servoAngleRest: 0,
   servoAngleDispense: 90,
+  servoSpeed: 10,
   colorTag: '#111',
   status: 'ready',
   slotLabel: `Bottle ${servoId}`,
@@ -70,6 +71,8 @@ export const storageService = {
       .filter((c) => c.servoId === 1)
       .map((c) => ({
         ...c,
+        servoAngleDispense: typeof c.servoAngleDispense === 'number' ? c.servoAngleDispense : 90,
+        servoSpeed: typeof c.servoSpeed === 'number' ? c.servoSpeed : 10,
         slotLabel: c.slotLabel?.startsWith('Slot') ? `Bottle ${c.servoId}` : c.slotLabel || `Bottle ${c.servoId}`,
       }));
     if (valid.length === 1) return valid;
@@ -87,6 +90,10 @@ export const storageService = {
   deleteLog(id: string): void {
     const filtered = this.getLogs().filter((l) => l.id !== id);
     localStorage.setItem(KEYS.LOGS, JSON.stringify(filtered));
+  },
+  /** Clears dispense logs only */
+  clearLogs(): void {
+    localStorage.removeItem(KEYS.LOGS);
   },
   /** Clears device data only; accounts are kept. */
   resetDevice() {

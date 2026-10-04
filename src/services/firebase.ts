@@ -1,3 +1,8 @@
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
+import { getAnalytics, Analytics } from 'firebase/analytics';
+
 // Firebase configuration
 export const firebaseConfig = {
   apiKey: import.meta?.env?.VITE_FIREBASE_API_KEY || "AIzaSyCvGEriFqIMvNJ5pZ4blUAt1MvuqrBa59M",
@@ -9,7 +14,34 @@ export const firebaseConfig = {
   measurementId: import.meta?.env?.VITE_FIREBASE_MEASUREMENT_ID || "G-5V6XXER82H"
 };
 
-export const app: any = null;
-export const analytics: any = null;
-export const auth: any = null;
-export const db: any = null;
+let appInstance: FirebaseApp | null = null;
+let authInstance: Auth | null = null;
+let dbInstance: Firestore | null = null;
+let analyticsInstance: Analytics | null = null;
+
+try {
+  if (getApps().length > 0) {
+    appInstance = getApps()[0];
+  } else if (firebaseConfig.apiKey) {
+    appInstance = initializeApp(firebaseConfig);
+  }
+
+  if (appInstance) {
+    authInstance = getAuth(appInstance);
+    dbInstance = getFirestore(appInstance);
+    if (typeof window !== 'undefined' && firebaseConfig.measurementId) {
+      try {
+        analyticsInstance = getAnalytics(appInstance);
+      } catch {
+        // Analytics can fail in non-browser or adblocked environments
+      }
+    }
+  }
+} catch (error) {
+  console.warn('[Firebase] Initialization warning:', error);
+}
+
+export const app = appInstance;
+export const auth = authInstance;
+export const db = dbInstance;
+export const analytics = analyticsInstance;

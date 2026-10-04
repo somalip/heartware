@@ -1,9 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ChamberConfig, MedicationSchedule, DispenseLog, ActiveIngredient, DispenseSafetyEvaluation } from '../types';
-import { storageService } from '../services/storageService';
-import { useHardware } from './HardwareContext';
-import { medicationSafetyService } from '../services/medicationSafetyService';
-import { findBestMatch } from '../data/medicationDatabase';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { ChamberConfig, MedicationSchedule, DispenseLog, ActiveIngredient, DispenseSafetyEvaluation } from '../types/index.ts';
+import { storageService } from '../services/storageService.ts';
+import { useHardware } from './HardwareContext.tsx';
+import { useAuth } from './AuthContext.tsx';
+import { medicationSafetyService } from '../services/medicationSafetyService.ts';
+import { findBestMatch } from '../data/medicationDatabase.ts';
+import { firebaseSyncService } from '../services/firebaseSyncService.ts';
 
 interface MedicationContextType {
   chambers: ChamberConfig[];
@@ -46,33 +48,137 @@ interface MedicationContextType {
     chamberId?: 1 | 2 | 3 | 4 | 0;
   }) => DispenseLog;
   deleteLog: (id: string) => void;
+  clearLogs: () => void;
+  seedSampleLogs: () => void;
+  loadDemoPrescription: () => void;
+  setChamberInventory: (servoId: number, count: number) => void;
+  syncWithCloudNow: () => Promise<void>;
 }
 
 const MedicationContext = createContext<MedicationContextType | undefined>(undefined);
 
 export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const { triggerDispense, triggerChainedDispense } = useHardware();
   const [chambers, setChambers] = useState<ChamberConfig[]>(() => storageService.getChambers());
   const [schedules, setSchedules] = useState<MedicationSchedule[]>(() => storageService.getSchedules());
   const [logs, setLogs] = useState<DispenseLog[]>(() => storageService.getLogs());
 
+  // Prevent initial load loops
+  const isHydratingFromCloud = useRef(false);
+
+  // Sync to local storage whenever state changes
   useEffect(() => {
     storageService.saveChambers(chambers);
-  }, [chambers]);
+    if (user?.id && !isHydratingFromCloud.current) {
+      firebaseSyncService.syncChambers(user.id, chambers);
+    }
+  }, [chambers, user?.id]);
 
   useEffect(() => {
     storageService.saveSchedules(schedules);
-  }, [schedules]);
+    if (user?.id && !isHydratingFromCloud.current) {
+      firebaseSyncService.syncSchedules(user.id, schedules);
+    }
+  }, [schedules, user?.id]);
+
+  // Firebase Realtime Subscriptions per user
+  useEffect(() => {
+    if (!user?.id) return;
+    const uid = user.id;
+
+    let unsubChambers: (() => void) | null = null;
+    let unsubSchedules: (() => void) | null = null;
+    let unsubLogs: (() => void) | null = null;
+
+    const hydrateAndListen = async () => {
+      isHydratingFromCloud.current = true;
+      try {
+        // Initial Fetch
+        const [cloudChambers, cloudSchedules, cloudLogs] = await Promise.all([
+          firebaseSyncService.fetchChambers(uid),
+          firebaseSyncService.fetchSchedules(uid),
+          firebaseSyncService.fetchLogs(uid),
+        ]);
+
+        if (cloudChambers && cloudChambers.length > 0) {
+          setChambers(cloudChambers);
+          storageService.saveChambers(cloudChambers);
+        } else {
+          // First time syncing this user - upload local initial state
+          await firebaseSyncService.syncChambers(uid, storageService.getChambers());
+        }
+
+        if (cloudSchedules && cloudSchedules.length > 0) {
+          setSchedules(cloudSchedules);
+          storageService.saveSchedules(cloudSchedules);
+        } else if (storageService.getSchedules().length > 0) {
+          await firebaseSyncService.syncSchedules(uid, storageService.getSchedules());
+        }
+
+        if (cloudLogs && cloudLogs.length > 0) {
+          setLogs(cloudLogs);
+        } else if (storageService.getLogs().length > 0) {
+          await firebaseSyncService.syncAllLogs(uid, storageService.getLogs());
+        }
+
+        // Subscriptions
+        unsubChambers = firebaseSyncService.subscribeChambers(uid, (remoteChambers) => {
+          if (remoteChambers && remoteChambers.length > 0) {
+            setChambers(remoteChambers);
+            storageService.saveChambers(remoteChambers);
+          }
+        });
+
+        unsubSchedules = firebaseSyncService.subscribeSchedules(uid, (remoteSchedules) => {
+          if (remoteSchedules) {
+            setSchedules(remoteSchedules);
+            storageService.saveSchedules(remoteSchedules);
+          }
+        });
+
+        unsubLogs = firebaseSyncService.subscribeLogs(uid, (remoteLogs) => {
+          if (remoteLogs) {
+            setLogs(remoteLogs);
+          }
+        });
+      } catch (e) {
+        console.warn('[MedicationContext] Cloud hydration notice:', e);
+      } finally {
+        setTimeout(() => {
+          isHydratingFromCloud.current = false;
+        }, 500);
+      }
+    };
+
+    hydrateAndListen();
+
+    return () => {
+      if (unsubChambers) unsubChambers();
+      if (unsubSchedules) unsubSchedules();
+      if (unsubLogs) unsubLogs();
+    };
+  }, [user?.id]);
+
+  const syncWithCloudNow = async () => {
+    if (!user?.id) return;
+    const uid = user.id;
+    await Promise.all([
+      firebaseSyncService.syncChambers(uid, chambers),
+      firebaseSyncService.syncSchedules(uid, schedules),
+      firebaseSyncService.syncAllLogs(uid, logs),
+    ]);
+  };
 
   const refillChamber = (servoId: number, countToAdd: number) => {
-    setChambers(prev =>
-      prev.map(c => {
+    setChambers((prev) =>
+      prev.map((c) => {
         if (c.servoId === servoId) {
           const nextCount = Math.min(c.maxCapacity, c.currentCount + countToAdd);
           return {
             ...c,
             currentCount: nextCount,
-            status: nextCount > 5 ? 'ready' : 'low'
+            status: nextCount > 5 ? 'ready' : 'low',
           };
         }
         return c;
@@ -81,25 +187,28 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const updateChamberConfig = (servoId: number, changes: Partial<ChamberConfig>) => {
-    setChambers(prev =>
-      prev.map(c => (c.servoId === servoId ? { ...c, ...changes } : c))
+    setChambers((prev) =>
+      prev.map((c) => (c.servoId === servoId ? { ...c, ...changes } : c))
     );
   };
 
   const addSchedule = (schedule: Omit<MedicationSchedule, 'id'>) => {
     const newSch: MedicationSchedule = {
       ...schedule,
-      id: `sch-${Date.now()}`
+      id: `sch-${Date.now()}`,
     };
-    setSchedules(prev => [...prev, newSch]);
+    setSchedules((prev) => [...prev, newSch]);
   };
 
   const updateSchedule = (id: string, changes: Partial<MedicationSchedule>) => {
-    setSchedules(prev => prev.map(s => (s.id === id ? { ...s, ...changes } : s)));
+    setSchedules((prev) => prev.map((s) => (s.id === id ? { ...s, ...changes } : s)));
   };
 
   const deleteSchedule = (id: string) => {
-    setSchedules(prev => prev.filter(s => s.id !== id));
+    setSchedules((prev) => prev.filter((s) => s.id !== id));
+    if (user?.id) {
+      firebaseSyncService.deleteScheduleRemote(user.id, id);
+    }
   };
 
   const dispenseNow = async (
@@ -108,7 +217,7 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     bypassSafety = false,
     count = 1
   ): Promise<{ success: boolean; message: string; safetyEvaluation?: DispenseSafetyEvaluation; response?: string }> => {
-    const chamber = chambers.find(c => c.servoId === chamberId);
+    const chamber = chambers.find((c) => c.servoId === chamberId);
     if (!chamber) {
       return { success: false, message: 'Invalid bottle ID requested' };
     }
@@ -116,7 +225,7 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (chamber.currentCount < pillCount) {
       return {
         success: false,
-        message: `Bottle ${chamberId} (${chamber.medicationName || 'Bottle ' + chamberId}) has only ${chamber.currentCount} pill${chamber.currentCount === 1 ? '' : 's'} remaining! Cannot dispense ${pillCount}.`
+        message: `Bottle ${chamberId} (${chamber.medicationName || 'Bottle ' + chamberId}) has only ${chamber.currentCount} pill${chamber.currentCount === 1 ? '' : 's'} remaining! Cannot dispense ${pillCount}.`,
       };
     }
 
@@ -132,19 +241,19 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    // Call hardware servo (sends single number "1", "2", "3" or repeated e.g. "11")
+    // Call hardware servo
     const result = await triggerDispense(chamber, pillCount);
 
     if (result.success) {
       // Decrement pill count
-      setChambers(prev =>
-        prev.map(c => {
+      setChambers((prev) =>
+        prev.map((c) => {
           if (c.servoId === chamberId) {
             const nextCount = Math.max(0, c.currentCount - pillCount);
             return {
               ...c,
               currentCount: nextCount,
-              status: nextCount === 0 ? 'empty' : nextCount <= 4 ? 'low' : 'ready'
+              status: nextCount === 0 ? 'empty' : nextCount <= 4 ? 'low' : 'ready',
             };
           }
           return c;
@@ -166,7 +275,11 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         pillsDispensed: pillCount,
       });
 
-      setLogs(prev => [newLog, ...prev]);
+      setLogs((prev) => [newLog, ...prev]);
+
+      if (user?.id) {
+        firebaseSyncService.syncLog(user.id, newLog);
+      }
     }
 
     return result;
@@ -181,7 +294,6 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return { success: false, message: 'No bottles selected in chain.' };
     }
 
-    // Check inventory for each bottle in sequence
     const counts: Record<number, number> = {};
     for (const id of sequence) {
       counts[id] = (counts[id] || 0) + 1;
@@ -189,16 +301,15 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     for (const [idStr, needed] of Object.entries(counts)) {
       const id = Number(idStr) as 1 | 2 | 3;
-      const ch = chambers.find(c => c.servoId === id);
+      const ch = chambers.find((c) => c.servoId === id);
       if (!ch || ch.currentCount < needed) {
         return {
           success: false,
-          message: `Bottle ${id} (${ch?.medicationName || `Bottle ${id}`}) has insufficient pills (${ch?.currentCount || 0} available, ${needed} required).`
+          message: `Bottle ${id} (${ch?.medicationName || `Bottle ${id}`}) has insufficient pills (${ch?.currentCount || 0} available, ${needed} required).`,
         };
       }
     }
 
-    // Pre-dispense safety checks if not bypassed
     if (!bypassSafety) {
       for (const [idStr, needed] of Object.entries(counts)) {
         const id = Number(idStr) as 1 | 2 | 3;
@@ -212,37 +323,33 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    // Map names for display
     const bottleNames: Record<number, string> = {};
-    chambers.forEach(c => {
+    chambers.forEach((c) => {
       bottleNames[c.servoId] = c.medicationName;
     });
 
-    // Call hardware service chained dispense (sends concatenated bottle digits e.g. "123")
     const result = await triggerChainedDispense(sequence, bottleNames);
 
     if (result.success) {
-      // Decrement inventory
-      setChambers(prev =>
-        prev.map(c => {
+      setChambers((prev) =>
+        prev.map((c) => {
           const used = counts[c.servoId] || 0;
           if (used > 0) {
             const nextCount = Math.max(0, c.currentCount - used);
             return {
               ...c,
               currentCount: nextCount,
-              status: nextCount === 0 ? 'empty' : nextCount <= 4 ? 'low' : 'ready'
+              status: nextCount === 0 ? 'empty' : nextCount <= 4 ? 'low' : 'ready',
             };
           }
           return c;
         })
       );
 
-      // Add log entries
       const newLogs: DispenseLog[] = [];
       for (const [idStr, used] of Object.entries(counts)) {
         const id = Number(idStr) as 1 | 2 | 3;
-        const ch = chambers.find(c => c.servoId === id);
+        const ch = chambers.find((c) => c.servoId === id);
         const matched = ch ? findBestMatch(ch.medicationName) : null;
         const ingredients = ch?.activeIngredients || matched?.activeIngredients || [];
 
@@ -257,9 +364,12 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           pillsDispensed: used,
         });
         newLogs.push(logEntry);
+        if (user?.id) {
+          firebaseSyncService.syncLog(user.id, logEntry);
+        }
       }
 
-      setLogs(prev => [...newLogs, ...prev]);
+      setLogs((prev) => [...newLogs, ...prev]);
     }
 
     return result;
@@ -276,9 +386,8 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     instructions: string;
     prescribedBy: string;
   }) => {
-    // 1. Update chamber config
-    setChambers(prev =>
-      prev.map(c => {
+    setChambers((prev) =>
+      prev.map((c) => {
         if (c.servoId === data.slotId) {
           return {
             ...c,
@@ -294,11 +403,10 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       })
     );
 
-    // 2. Add or update schedule routine
-    setSchedules(prev => {
-      const existing = prev.find(s => s.chamberId === data.slotId);
+    setSchedules((prev) => {
+      const existing = prev.find((s) => s.chamberId === data.slotId);
       if (existing) {
-        return prev.map(s =>
+        return prev.map((s) =>
           s.id === existing.id
             ? {
                 ...s,
@@ -334,7 +442,7 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const calculateAdherenceRate = (): number => {
     if (logs.length === 0) return 96;
-    const successes = logs.filter(l => l.status === 'success').length;
+    const successes = logs.filter((l) => l.status === 'success').length;
     return Math.round((successes / logs.length) * 100);
   };
 
@@ -346,8 +454,7 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     notes?: string;
     chamberId?: 1 | 2 | 3 | 4 | 0;
   }): DispenseLog => {
-    // If associated with a chamber, or resolve ingredients from database
-    const chamber = data.chamberId ? chambers.find(c => c.servoId === data.chamberId) : undefined;
+    const chamber = data.chamberId ? chambers.find((c) => c.servoId === data.chamberId) : undefined;
     const matched = findBestMatch(data.medicationName);
     const ingredients = chamber?.activeIngredients?.length
       ? chamber.activeIngredients
@@ -364,12 +471,15 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       pillsDispensed: data.pillsDispensed || 1,
     });
 
-    setLogs(prev => [newLog, ...prev]);
+    setLogs((prev) => [newLog, ...prev]);
 
-    // If logged against a dispenser chamber and currentCount > 0, decrement inventory
+    if (user?.id) {
+      firebaseSyncService.syncLog(user.id, newLog);
+    }
+
     if (data.chamberId && data.chamberId >= 1 && data.chamberId <= 4) {
-      setChambers(prev =>
-        prev.map(c => {
+      setChambers((prev) =>
+        prev.map((c) => {
           if (c.servoId === data.chamberId) {
             const nextCount = Math.max(0, c.currentCount - (data.pillsDispensed || 1));
             return {
@@ -388,7 +498,127 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const deleteLog = (id: string) => {
     storageService.deleteLog(id);
-    setLogs(prev => prev.filter(l => l.id !== id));
+    setLogs((prev) => prev.filter((l) => l.id !== id));
+    if (user?.id) {
+      firebaseSyncService.deleteLogRemote(user.id, id);
+    }
+  };
+
+  const clearLogs = () => {
+    storageService.clearLogs();
+    setLogs([]);
+    if (user?.id) {
+      firebaseSyncService.clearAllLogsRemote(user.id);
+    }
+  };
+
+  const seedSampleLogs = () => {
+    const now = Date.now();
+    const demoLogs: DispenseLog[] = [
+      {
+        id: `log-seed-${now}-1`,
+        timestamp: new Date(now - 1000 * 60 * 35).toISOString(),
+        chamberId: 1,
+        medicationName: chambers[0]?.medicationName || 'Lisinopril 10mg',
+        status: 'success',
+        dispensedBy: 'scheduled_auto',
+        notes: 'Morning scheduled dose dispensed',
+        pillsDispensed: 1,
+      },
+      {
+        id: `log-seed-${now}-2`,
+        timestamp: new Date(now - 1000 * 60 * 60 * 6).toISOString(),
+        chamberId: 1,
+        medicationName: chambers[0]?.medicationName || 'Lisinopril 10mg',
+        status: 'success',
+        dispensedBy: 'app_trigger',
+        notes: 'Midday dose via in-app button',
+        pillsDispensed: 1,
+      },
+      {
+        id: `log-seed-${now}-3`,
+        timestamp: new Date(now - 1000 * 60 * 60 * 24).toISOString(),
+        chamberId: 1,
+        medicationName: chambers[0]?.medicationName || 'Lisinopril 10mg',
+        status: 'success',
+        dispensedBy: 'scheduled_auto',
+        notes: 'Scheduled dose taken on time',
+        pillsDispensed: 1,
+      },
+      {
+        id: `log-seed-${now}-4`,
+        timestamp: new Date(now - 1000 * 60 * 60 * 30).toISOString(),
+        chamberId: 1,
+        medicationName: chambers[0]?.medicationName || 'Lisinopril 10mg',
+        status: 'success',
+        dispensedBy: 'hardware_button',
+        notes: 'Physical button pressed on dispenser',
+        pillsDispensed: 1,
+      },
+      {
+        id: `log-seed-${now}-5`,
+        timestamp: new Date(now - 1000 * 60 * 60 * 52).toISOString(),
+        chamberId: 1,
+        medicationName: chambers[0]?.medicationName || 'Lisinopril 10mg',
+        status: 'success',
+        dispensedBy: 'scheduled_auto',
+        notes: 'Evening routine completed',
+        pillsDispensed: 1,
+      },
+    ];
+
+    demoLogs.forEach((l) => storageService.addLog(l));
+    setLogs(storageService.getLogs());
+
+    if (user?.id) {
+      demoLogs.forEach((l) => firebaseSyncService.syncLog(user.id, l));
+    }
+  };
+
+  const loadDemoPrescription = () => {
+    applyPrescriptionScan({
+      slotId: 1,
+      medicationName: 'Lisinopril',
+      pillStrength: '10mg',
+      activeIngredients: [{ name: 'Lisinopril', amountMg: 10 }],
+      maxDailyDoses: 2,
+      dosage: '1 tablet daily',
+      times: ['08:00', '20:00'],
+      instructions: 'Take with water every morning and evening. Do not double dose.',
+      prescribedBy: 'Dr. Sarah Chen, MD (Cardiology)',
+    });
+    setChambers((prev) =>
+      prev.map((c) =>
+        c.servoId === 1
+          ? {
+              ...c,
+              medicationName: 'Lisinopril',
+              pillStrength: '10mg',
+              currentCount: 30,
+              maxCapacity: 30,
+              status: 'ready',
+              activeIngredients: [{ name: 'Lisinopril', amountMg: 10 }],
+              maxDailyDoses: 2,
+            }
+          : c
+      )
+    );
+  };
+
+  const setChamberInventory = (servoId: number, count: number) => {
+    const clamped = Math.max(0, count);
+    setChambers((prev) =>
+      prev.map((c) => {
+        if (c.servoId === servoId) {
+          return {
+            ...c,
+            currentCount: clamped,
+            status: clamped === 0 ? 'empty' : clamped <= 4 ? 'low' : 'ready',
+          };
+        }
+        return c;
+      })
+    );
   };
 
   return (
@@ -408,6 +638,11 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         calculateAdherenceRate,
         logManualIntake,
         deleteLog,
+        clearLogs,
+        seedSampleLogs,
+        loadDemoPrescription,
+        setChamberInventory,
+        syncWithCloudNow,
       }}
     >
       {children}

@@ -95,6 +95,16 @@ export const notificationService = {
   },
 
   /**
+   * Simulate a medication dosing alert for QA testing.
+   */
+  async simulateDoseAlert(medicationName = 'Lisinopril 10mg', dosage = '1 tablet', bottleNum = 1): Promise<boolean> {
+    return this.showNotification(`Time for ${medicationName}`, {
+      body: `Bottle ${bottleNum}: Take ${dosage} now with a full glass of water.`,
+      tag: `heartware-dose-sim-${Date.now()}`,
+    });
+  },
+
+  /**
    * Check schedules against current time (HH:MM) and send notification if due.
    */
   async checkSchedules(schedules: MedicationSchedule[], chambers: ChamberConfig[]): Promise<void> {
