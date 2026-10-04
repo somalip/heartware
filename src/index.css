@@ -319,6 +319,7 @@ html, body {
   color: var(--ios-label);
   line-height: 1.25;
   font-weight: 400;
+  word-break: break-word;
 }
 .ios-row-title {
   font-size: 17px;
@@ -342,6 +343,10 @@ html, body {
   flex-shrink: 0;
   margin-left: 8px;
   font-weight: 400;
+  max-width: 65%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ios-row-value-bold {
   font-size: 17px;
@@ -350,6 +355,10 @@ html, body {
   flex-shrink: 0;
   margin-left: 8px;
   font-weight: 600;
+  max-width: 65%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ios-row-value-inline {
   margin-left: 0;

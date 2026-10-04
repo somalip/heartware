@@ -31,7 +31,7 @@ export function Dispenser() {
     chamber: ChamberConfig;
   } | null>(null);
 
-  const nextDoseText = () => {
+  const getNextDoseInfo = () => {
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const doses = schedules
@@ -46,10 +46,14 @@ export function Dispenser() {
           })
       )
       .sort((a, b) => a.min - b.min);
-    if (!doses.length) return 'None scheduled';
+    if (!doses.length) return null;
     const upcoming = doses.find((d) => d.min > nowMin);
-    return upcoming ? `${upcoming.time} · ${upcoming.name}` : `Tomorrow ${doses[0].time} · ${doses[0].name}`;
+    return upcoming
+      ? { timeLabel: `Today ${upcoming.time}`, name: upcoming.name }
+      : { timeLabel: `Tomorrow ${doses[0].time}`, name: doses[0].name };
   };
+
+  const nextDose = getNextDoseInfo();
 
   const handleDispense = async (c: ChamberConfig) => {
     triggerHaptic('medium');
@@ -146,9 +150,14 @@ export function Dispenser() {
               <div className="ios-row">
                 <div className="ios-row-content">
                   <div className="ios-row-label">Next Scheduled Dose</div>
+                  {nextDose && (
+                    <div className="ios-row-sublabel">
+                      {nextDose.name}
+                    </div>
+                  )}
                 </div>
-                <div className="ios-row-value-bold">
-                  {nextDoseText()}
+                <div className={nextDose ? 'ios-row-value-bold' : 'ios-row-value'}>
+                  {nextDose ? nextDose.timeLabel : 'None'}
                 </div>
               </div>
 
