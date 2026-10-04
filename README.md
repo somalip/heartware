@@ -1,3 +1,6 @@
+#Branches
+Check out the "app" branch for the PWA app, the "main" branch for the landing website and the "firmware" branch for the firmware for the ESP32
+
 # Team Heartware
 
 An automatic medication dispenser designed to make medication management more accessible, reliable, and simple.
