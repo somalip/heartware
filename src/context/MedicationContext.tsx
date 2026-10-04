@@ -122,7 +122,7 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Pre-dispense safety check
     if (!bypassSafety) {
-      const evaluation = medicationSafetyService.validateDispenseSafety(chamberId, chambers, logs);
+      const evaluation = medicationSafetyService.validateDispenseSafety(chamberId, chambers, logs, pillCount);
       if (!evaluation.safeToDispense) {
         return {
           success: false,
@@ -200,9 +200,9 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Pre-dispense safety checks if not bypassed
     if (!bypassSafety) {
-      for (const [idStr] of Object.entries(counts)) {
+      for (const [idStr, needed] of Object.entries(counts)) {
         const id = Number(idStr) as 1 | 2 | 3;
-        const evaluation = medicationSafetyService.validateDispenseSafety(id, chambers, logs);
+        const evaluation = medicationSafetyService.validateDispenseSafety(id, chambers, logs, needed);
         if (!evaluation.safeToDispense) {
           return {
             success: false,

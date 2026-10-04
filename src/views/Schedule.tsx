@@ -7,24 +7,51 @@ import { IosSheet } from '../components/IosSheet';
 import { PrescriptionScannerModal } from '../components/PrescriptionScannerModal';
 import { triggerHaptic } from '../utils/haptics';
 
+import { medicationSafetyService } from '../services/medicationSafetyService';
+import { CrossIntakeAlertModal } from '../components/CrossIntakeAlertModal';
+import { DispenseSafetyEvaluation } from '../types';
+
 type SlotId = ChamberConfig['servoId'];
 
 export function Schedule() {
-  const { schedules, chambers, deleteSchedule, dispenseNow, applyPrescriptionScan } = useMedication();
+  const { schedules, chambers, logs, deleteSchedule, dispenseNow, applyPrescriptionScan } = useMedication();
   const { showToast } = useToast();
   const { showConfirm } = useAlert();
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [scheduleCounts, setScheduleCounts] = useState<Record<string, number>>({});
+  const [safetyAlert, setSafetyAlert] = useState<{
+    evaluation: DispenseSafetyEvaluation;
+    chamber: ChamberConfig;
+    requestedCount: number;
+  } | null>(null);
 
   const nameFor = (id: SlotId, fallback: string) =>
     chambers.find((c) => c.servoId === id)?.medicationName ?? fallback;
 
   const sorted = [...schedules].sort((a, b) => (a.times[0] ?? '').localeCompare(b.times[0] ?? ''));
 
-  const handleManualDispense = async (chamberId: SlotId) => {
+  const handleManualDispense = async (chamberId: SlotId, count = 1) => {
     triggerHaptic('medium');
-    const res = await dispenseNow(chamberId, 'app_trigger');
+    const chamber = chambers.find((c) => c.servoId === chamberId);
+    const res = await dispenseNow(chamberId, 'app_trigger', false, count);
+
+    if (res.safetyEvaluation && !res.safetyEvaluation.safeToDispense && chamber) {
+      triggerHaptic('warning');
+      setSafetyAlert({ evaluation: res.safetyEvaluation, chamber, requestedCount: count });
+      return;
+    }
+
     showToast(res.message, res.success ? 'success' : 'warning');
+  };
+
+  const handleEmergencyOverrideDispense = async () => {
+    if (!safetyAlert) return;
+    const { chamber, requestedCount } = safetyAlert;
+    setSafetyAlert(null);
+    triggerHaptic('heavy');
+    const res = await dispenseNow(chamber.servoId, 'manual_override', true, requestedCount);
+    showToast(`Override dispense: ${res.message}`, res.success ? 'warning' : 'error');
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -125,13 +152,48 @@ export function Schedule() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', padding: '8px 16px 12px', borderTop: '0.5px solid var(--ios-separator)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', padding: '8px 16px 12px', borderTop: '0.5px solid var(--ios-separator)', flexWrap: 'wrap' }}>
+                    {chamber && chamber.currentCount > 0 && (
+                      <div className="ios-pill-count-group" role="group" aria-label="Select pill count">
+                        {[1, 2, 3].map((num) => {
+                          const hasInv = chamber.currentCount >= num;
+                          const safetyEval = medicationSafetyService.validateDispenseSafety(s.chamberId, chambers, logs, num);
+                          const isSafe = hasInv && safetyEval.safeToDispense;
+                          const isSelected = (scheduleCounts[s.id] ?? 1) === num;
+
+                          let title = `${num} pill${num > 1 ? 's' : ''}`;
+                          if (!hasInv) {
+                            title = `Only ${chamber.currentCount} pill${chamber.currentCount === 1 ? '' : 's'} available in inventory`;
+                          } else if (!safetyEval.safeToDispense) {
+                            title = safetyEval.blockReason || 'Exceeds safety limit';
+                          }
+
+                          return (
+                            <button
+                              key={num}
+                              type="button"
+                              className={`ios-pill-count-btn ${isSelected ? 'active' : ''}`}
+                              disabled={!hasInv || !isSafe}
+                              onClick={() => {
+                                triggerHaptic('selection');
+                                setScheduleCounts((prev) => ({ ...prev, [s.id]: num }));
+                              }}
+                              title={title}
+                            >
+                              {num}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     <button
                       type="button"
-                      className="ios-nav-action"
-                      onClick={() => handleManualDispense(s.chamberId)}
+                      className="ios-nav-action primary"
+                      disabled={!chamber || chamber.currentCount < (scheduleCounts[s.id] ?? 1)}
+                      onClick={() => handleManualDispense(s.chamberId, scheduleCounts[s.id] ?? 1)}
                     >
-                      Dispense Now
+                      Dispense {scheduleCounts[s.id] ?? 1}x
                     </button>
                     <button
                       type="button"
@@ -148,6 +210,17 @@ export function Schedule() {
           </div>
         )}
       </div>
+
+      {/* Safety Alert Modal for Schedule View */}
+      {safetyAlert && (
+        <CrossIntakeAlertModal
+          evaluation={safetyAlert.evaluation}
+          targetMedicationName={safetyAlert.chamber.medicationName}
+          targetSlotId={safetyAlert.chamber.servoId}
+          onCancel={() => setSafetyAlert(null)}
+          onConfirmOverride={handleEmergencyOverrideDispense}
+        />
+      )}
 
       {showAddSheet && (
         <AddScheduleSheet

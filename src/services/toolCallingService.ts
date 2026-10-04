@@ -207,7 +207,7 @@ class ToolCallingService {
 
           // Clinical Safety Check
           const logs = storageService.getLogs();
-          const safety = medicationSafetyService.validateDispenseSafety(slotId, chambers, logs);
+          const safety = medicationSafetyService.validateDispenseSafety(slotId, chambers, logs, count);
 
           if (!safety.safeToDispense) {
             result = {

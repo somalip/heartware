@@ -161,9 +161,11 @@ export const medicationSafetyService = {
    */
   getSlotDailyDoseCount(servoId: number, logs: DispenseLog[], hoursWindow = 24): number {
     const cutoff = Date.now() - hoursWindow * 60 * 60 * 1000;
-    return logs.filter(
-      (l) => l.chamberId === servoId && l.status === 'success' && new Date(l.timestamp).getTime() >= cutoff
-    ).length;
+    return logs
+      .filter(
+        (l) => l.chamberId === servoId && l.status === 'success' && new Date(l.timestamp).getTime() >= cutoff
+      )
+      .reduce((sum, l) => sum + (l.pillsDispensed || 1), 0);
   },
 
   /**
@@ -172,13 +174,15 @@ export const medicationSafetyService = {
   validateDispenseSafety(
     targetServoId: 1 | 2 | 3 | 4,
     chambers: ChamberConfig[],
-    logs: DispenseLog[]
+    logs: DispenseLog[],
+    pillCount: number = 1
   ): DispenseSafetyEvaluation {
     const chamber = chambers.find((c) => c.servoId === targetServoId);
     if (!chamber) {
       return { safeToDispense: false, hardBlocked: true, warnings: ['Chamber not found'] };
     }
 
+    const requestedCount = Math.max(1, pillCount);
     const warnings: string[] = [];
     let hardBlocked = false;
     let blockReason: string | undefined = undefined;
@@ -191,11 +195,14 @@ export const medicationSafetyService = {
     );
 
     // 1. Check Chamber Max Daily Doses
-    const dosesToday = recentLogs.filter((l) => l.chamberId === targetServoId).length;
+    const dosesToday = recentLogs
+      .filter((l) => l.chamberId === targetServoId)
+      .reduce((sum, l) => sum + (l.pillsDispensed || 1), 0);
+
     if (chamber.maxDailyDoses && chamber.maxDailyDoses > 0) {
-      if (dosesToday >= chamber.maxDailyDoses) {
+      if (dosesToday + requestedCount > chamber.maxDailyDoses) {
         hardBlocked = true;
-        blockReason = `Daily limit reached for Slot ${targetServoId} (${chamber.medicationName}). You have already dispensed ${dosesToday} of ${chamber.maxDailyDoses} allowed doses today.`;
+        blockReason = `Daily limit exceeded for Slot ${targetServoId} (${chamber.medicationName}). You have already dispensed ${dosesToday} of ${chamber.maxDailyDoses} allowed pills today. Dispensing ${requestedCount} more would exceed the limit.`;
         warnings.push(blockReason);
       }
     }
@@ -225,12 +232,14 @@ export const medicationSafetyService = {
           if (logIngredients) {
             const matchingIng = logIngredients.find((i) => normalizeIngredientName(i.name) === key);
             if (matchingIng) {
-              currentTotalMg += matchingIng.amountMg;
+              const pills = log.pillsDispensed || 1;
+              currentTotalMg += matchingIng.amountMg * pills;
             }
           }
         }
 
-        const wouldBeMg = currentTotalMg + ing.amountMg;
+        const additionalMg = ing.amountMg * requestedCount;
+        const wouldBeMg = currentTotalMg + additionalMg;
         if (wouldBeMg > limitMeta.maxDailyMg) {
           hardBlocked = true;
           exceededIngredient = {
@@ -239,7 +248,7 @@ export const medicationSafetyService = {
             wouldBeMg,
             maxMg: limitMeta.maxDailyMg,
           };
-          blockReason = `Cross-intake risk! Dispensing ${chamber.medicationName} would bring your 24-hour ${ing.name} intake to ${wouldBeMg}mg, which exceeds the safe limit of ${limitMeta.maxDailyMg}mg.`;
+          blockReason = `Cross-intake risk! Dispensing ${requestedCount} pill${requestedCount > 1 ? 's' : ''} of ${chamber.medicationName} would bring your 24-hour ${ing.name} intake to ${wouldBeMg}mg, which exceeds the safe limit of ${limitMeta.maxDailyMg}mg.`;
           warnings.push(blockReason);
         } else if (wouldBeMg >= limitMeta.maxDailyMg * 0.8) {
           warnings.push(

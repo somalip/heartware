@@ -31,6 +31,7 @@ export function Dispenser() {
   const [safetyAlert, setSafetyAlert] = useState<{
     evaluation: DispenseSafetyEvaluation;
     chamber: ChamberConfig;
+    requestedCount?: number;
   } | null>(null);
 
   const getNextDoseInfo = () => {
@@ -57,13 +58,17 @@ export function Dispenser() {
 
   const nextDose = getNextDoseInfo();
 
-  const handleDispense = async (c: ChamberConfig) => {
+  const [dispenseCounts, setDispenseCounts] = useState<Record<number, number>>({ 1: 1, 2: 1, 3: 1, 4: 1 });
+  const [testDispenseCount, setTestDispenseCount] = useState<number>(1);
+
+  const handleDispense = async (c: ChamberConfig, count?: number) => {
     triggerHaptic('medium');
-    const res = await dispenseNow(c.servoId, 'app_trigger', false, 1);
+    const pillsToDispense = count ?? dispenseCounts[c.servoId] ?? 1;
+    const res = await dispenseNow(c.servoId, 'app_trigger', false, pillsToDispense);
 
     if (res.safetyEvaluation && !res.safetyEvaluation.safeToDispense) {
       triggerHaptic('warning');
-      setSafetyAlert({ evaluation: res.safetyEvaluation, chamber: c });
+      setSafetyAlert({ evaluation: res.safetyEvaluation, chamber: c, requestedCount: pillsToDispense });
       return;
     }
 
@@ -72,10 +77,10 @@ export function Dispenser() {
 
   const handleEmergencyOverrideDispense = async () => {
     if (!safetyAlert) return;
-    const { chamber } = safetyAlert;
+    const { chamber, requestedCount } = safetyAlert;
     setSafetyAlert(null);
     triggerHaptic('heavy');
-    const res = await dispenseNow(chamber.servoId, 'manual_override', true);
+    const res = await dispenseNow(chamber.servoId, 'manual_override', true, requestedCount || 1);
     showToast(`Override dispense: ${res.message}`, res.success ? 'warning' : 'error');
   };
 
@@ -102,15 +107,16 @@ export function Dispenser() {
     showToast(res.message, 'info');
   };
 
-  const handleTestDispense = async () => {
+  const handleTestDispense = async (count?: number) => {
     triggerHaptic('medium');
     if (!state.connected) {
       connectSimulated('Hardware link auto-started in simulation mode for test.');
     }
+    const pills = count ?? testDispenseCount ?? 1;
     const targetChamber = chambers.find(c => c.servoId === 1) || chambers[0];
-    const res = await triggerDispense(targetChamber, 1);
+    const res = await triggerDispense(targetChamber, pills);
     if (res.success) {
-      showToast('Test pill dispensed', 'success');
+      showToast(`Test: ${pills} pill${pills > 1 ? 's' : ''} dispensed`, 'success');
     } else {
       showToast(res.message || 'Test dispense failed', 'error');
     }
@@ -259,7 +265,7 @@ export function Dispenser() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, marginLeft: 'auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, marginLeft: 'auto', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                       {!isConfigured ? (
                         <span className="ios-badge" style={{ backgroundColor: 'var(--ios-fill)', color: 'var(--ios-secondary)' }}>
                           Unset
@@ -274,13 +280,51 @@ export function Dispenser() {
                         <span className="ios-badge green">Ready</span>
                       )}
 
+                      {/* 1, 2, 3 Multi-Pill Selector */}
+                      {isConfigured && !isEmpty && (
+                        <div className="ios-pill-count-group" role="group" aria-label="Select number of pills to dispense">
+                          {[1, 2, 3].map((num) => {
+                            const hasInventory = c.currentCount >= num;
+                            const evalSafety = medicationSafetyService.validateDispenseSafety(c.servoId, chambers, logs, num);
+                            const isAllowed = hasInventory && evalSafety.safeToDispense;
+                            const isSelected = (dispenseCounts[c.servoId] ?? 1) === num;
+
+                            let title = `${num} pill${num > 1 ? 's' : ''}`;
+                            if (!hasInventory) {
+                              title = `Only ${c.currentCount} pill${c.currentCount === 1 ? '' : 's'} available in inventory`;
+                            } else if (!evalSafety.safeToDispense) {
+                              title = evalSafety.blockReason || 'Exceeds safety limit';
+                            }
+
+                            return (
+                              <button
+                                key={num}
+                                type="button"
+                                className={`ios-pill-count-btn ${isSelected ? 'active' : ''}`}
+                                disabled={state.isDispensing || !hasInventory || !isAllowed}
+                                onClick={() => {
+                                  triggerHaptic('selection');
+                                  setDispenseCounts((prev) => ({ ...prev, [c.servoId]: num }));
+                                }}
+                                title={title}
+                              >
+                                {num}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
                       <button
-                        className="ios-nav-action"
+                        className="ios-nav-action primary"
                         onClick={() => handleDispense(c)}
                         disabled={state.isDispensing || !isConfigured || isEmpty}
+                        title={`Dispense ${dispenseCounts[c.servoId] ?? 1} pill${(dispenseCounts[c.servoId] ?? 1) > 1 ? 's' : ''}`}
                       >
                         {isCurrent && <IosSpinner size={13} color="var(--ios-blue)" />}
-                        {isCurrent ? 'Moving…' : 'Dispense'}
+                        {isCurrent
+                          ? 'Moving…'
+                          : `Dispense ${isConfigured && !isEmpty ? `${dispenseCounts[c.servoId] ?? 1}x` : ''}`}
                       </button>
 
                       <button
@@ -390,8 +434,30 @@ export function Dispenser() {
                 </div>
               )}
 
-              {/* One Test Button to Give One Pill */}
+              {/* Test Dispense Section (1, 2, 3 pills) */}
               <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '0.5px solid var(--ios-separator)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ios-secondary)' }}>
+                    Test Dispense Pills
+                  </span>
+                  <div className="ios-pill-count-group" role="group" aria-label="Select test pill count">
+                    {[1, 2, 3].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        className={`ios-pill-count-btn ${testDispenseCount === num ? 'active' : ''}`}
+                        disabled={state.isDispensing}
+                        onClick={() => {
+                          triggerHaptic('selection');
+                          setTestDispenseCount(num);
+                        }}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   className="ios-ble-btn"
@@ -402,7 +468,7 @@ export function Dispenser() {
                     fontWeight: 600,
                     fontSize: '13.5px',
                   }}
-                  onClick={handleTestDispense}
+                  onClick={() => handleTestDispense(testDispenseCount)}
                   disabled={state.isDispensing}
                 >
                   {state.isDispensing ? (
@@ -413,7 +479,7 @@ export function Dispenser() {
                       <line x1="8" y1="12" x2="16" y2="12" />
                     </svg>
                   )}
-                  <span>{state.isDispensing ? 'Dispensing…' : 'Dispense 1 test pill'}</span>
+                  <span>{state.isDispensing ? 'Dispensing…' : `Dispense ${testDispenseCount} test pill${testDispenseCount > 1 ? 's' : ''}`}</span>
                 </button>
               </div>
             </div>
