@@ -2,106 +2,147 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <ESP32Servo.h>
 
 BLEServer *pServer = NULL;
 BLECharacteristic *pServoCharacteristic = NULL;
 bool deviceConnected = false;
 
-// Heartware BLE UUIDs matching the PWA Web Bluetooth client
 #define SERVICE_UUID "41200547-118c-4580-926f-6380e3a521b5"
 #define CHARATERISTIC_UUID "2a75981f-0e72-4bb1-943b-5d568704b20a"
 
-class ServerCallbacks : public BLEServerCallbacks {
-  void onConnect(BLEServer *pServer) {
-    deviceConnected = true;
-    Serial.println("Device connected to Heartware BLE Server");
-  }
-
-  void onDisconnect(BLEServer *pServer) {
-    deviceConnected = false;
-    Serial.println("Device disconnected. Restarting BLE advertising...");
-    pServer->getAdvertising()->start();
-  }
+struct PillData {
+  int requests;
+  Servo servo;
+  bool active;
 };
 
-// Helper to actuate individual bottle dispenser (Bottle 1, Bottle 2, Bottle 3)
-void dispenseBottle(int bottleNum) {
-  Serial.print("Dispensing 1 pill from Bottle ");
-  Serial.println(bottleNum);
-  // Example: Actuate servo or motor for bottleNum:
-  // if (bottleNum == 1) servo1.write(90); ...
-}
+class ServoHandler {
+  public:
+    PillData pillData[3];
+    Servo s1;
+    Servo s2;
+    Servo s3;
 
-class ServoCallbacks : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    Serial.println("Received new value from Heartware App:");
-    String value = pCharacteristic->getValue();
-    Serial.println(value);
+    ServoHandler() {
+      for(int i = 0; i < 3; i++) {
+        this->pillData[i].requests = 0;
+        //this->pillData[i].servo.attach(5);
+        this->pillData[i].active = false;
+        s1.attach(5);
+        s2.attach(6);
+        s3.attach(7);
+        Serial.println("init servos");
+      }
+    }
 
-    // Heartware Protocol:
-    // Single bottle: "1", "2", or "3"
-    // Chained multi-pill commands: concatenated digits, e.g. "123", "11", "213"
-    int pillsDispensed = 0;
-    for (int i = 0; i < value.length(); i++) {
-      char c = value[i];
-      if (c == '1' || c == '2' || c == '3') {
-        int bottleId = c - '0';
-        dispenseBottle(bottleId);
-        pillsDispensed++;
-        // Short mechanical delay between chained drops if multiple pills requested
-        if (i < value.length() - 1) {
-          delay(600);
+    void sendRequest(int pill) {
+      pillData[pill].requests += 1;
+    }
+
+    void dispense() {
+      for(int i = 0; i < 3; i++) {
+        if(!this->pillData[i].active && this->pillData[i].requests > 0) {
+          this->pillData[i].active = true;
+          //this->pillData[i].servo.write(90);
+          s1.write(90);
+        }
+      }
+      delay(100);
+      for(int i = 0; i < 3; i++) {
+        if(this->pillData[i].active && this->pillData[i].requests > 0) {
+          //this->pillData[i].servo.write(-37);
+          this->pillData[i].active = false;
+          this->pillData[i].requests-=1;
+          s1.write(0);
         }
       }
     }
 
-    // Echo back an ACK notification to the PWA client
-    String ackMsg = "ACK:" + value;
-    pCharacteristic->setValue(ackMsg.c_str());
-    pCharacteristic->notify();
+    void test() {
+      s1.write(90);
+    }
+
+    bool requestWaiting() {
+      return (this->pillData[0].requests > 0 || this->pillData[1].requests > 0 || this->pillData[2].requests > 0);
+    }
+};
+
+
+class ServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer *pServer) {
+    deviceConnected = true;
+    Serial.println("connectsd");
+  }
+
+  void onDisconnect(BLEServer *pServer) {
+    deviceConnected = false;
+    Serial.println("disonnected");
+    pServer->getAdvertising()->start();
   }
 };
 
-void setup() {
-  Serial.begin(115200);
-  Serial.println("Starting Heartware ESP32 BLE Server...");
+ServoHandler servoHandler();
 
-  // Initialize BLE device with advertised name
+
+class ServoCallbacks : public BLECharacteristicCallbacks {
+
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    Serial.println("recieved new value");
+    String value = pCharacteristic->getValue();
+    for (char i : value) {
+      int data = i - '0';
+      servoHandler.sendRequest(data);
+    }
+    //ServoHandler::requests+=1;
+    Serial.println(value);
+  }
+};
+
+
+
+Servo test;
+
+void setup() {
+  
+  ServoHandler();
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  Serial.println("starting BLE");
+
   BLEDevice::init("ESP32_Test");
 
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new ServerCallbacks());
   BLEService *pService = pServer->createService(SERVICE_UUID);
   
-  // Enable READ, WRITE, and NOTIFY for bidirectional PWA communication
-  pServoCharacteristic = pService->createCharacteristic(
-    CHARATERISTIC_UUID,
-    BLECharacteristic::PROPERTY_READ |
-    BLECharacteristic::PROPERTY_WRITE |
-    BLECharacteristic::PROPERTY_NOTIFY
-  );
+  pServoCharacteristic = 
+    pService->createCharacteristic(CHARATERISTIC_UUID,  BLECharacteristic::PROPERTY_WRITE);
 
-  // Initial read value when client queries characteristic
-  pServoCharacteristic->setValue("HEARTWARE:READY");
+  pServoCharacteristic->setValue("test value");
   
-  // Add BLE2902 descriptor to allow client notification subscriptions
-  pServoCharacteristic->addDescriptor(new BLE2902());
+   
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  //BLEDevice::startAdvertising();
   pServoCharacteristic->setCallbacks(new ServoCallbacks());
 
   pService->start();
-
-  // Configure advertising with service UUID for fast PWA scanning
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(SERVICE_UUID);
-  pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06); // Parameters that help with iOS/Chrome BLE connections
-  pAdvertising->setMaxPreferred(0x12);
   pServer->getAdvertising()->start();
 
-  Serial.println("Heartware ESP32 BLE ready and advertising!");
+  Serial.println("init done");
+  
+  test.attach(4);
+  servoHandler();
+  
+  //Serial.println(test.attached());
 }
 
 void loop() {
-  // Can periodically send telemetry notifications if device is connected
+
+  if(servoHandler.requestWaiting()) {
+
+    Serial.println("dispensing");
+    servoHandler.dispense();
+  }
   delay(1000);
 }
