@@ -2,12 +2,86 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <ESP32Servo.h>
 
 BLEServer *pServer = NULL;
 BLECharacteristic *pServoCharacteristic = NULL;
 bool deviceConnected = false;
+
+
 #define SERVICE_UUID "41200547-118c-4580-926f-6380e3a521b5"
 #define CHARATERISTIC_UUID "2a75981f-0e72-4bb1-943b-5d568704b20a"
+
+struct PillData {
+  int requests;
+  Servo servo;
+  bool active;
+};
+
+class ServoHandler {
+  public:
+    PillData pillData[3];
+    Servo s1;
+    Servo s2;
+    Servo s3;
+
+    ServoHandler() {
+      for(int i = 0; i < 3; i++) {
+        this->pillData[i].requests = 0;
+        //this->pillData[i].servo.attach(5);
+        this->pillData[i].active = false;
+        s1.attach(5);
+        s2.attach(6);
+        s3.attach(7);
+        Serial.println("init servos");
+      }
+    }
+
+    void init() {
+      for(int i = 0; i < 3; i++) {
+        this->pillData[i].requests = 0;
+        //this->pillData[i].servo.attach(5);
+        this->pillData[i].active = false;
+        s1.attach(5);
+        s2.attach(6);
+        s3.attach(7);
+        Serial.println("init servos");
+      }
+    }
+
+    void sendRequest(int pill) {
+      pillData[pill].requests += 1;
+    }
+
+    void dispense() {
+      for(int i = 0; i < 3; i++) {
+        if(!this->pillData[i].active && this->pillData[i].requests > 0) {
+          this->pillData[i].active = true;
+          //this->pillData[i].servo.write(90);
+          s1.write(90);
+        }
+      }
+      delay(100);
+      for(int i = 0; i < 3; i++) {
+        if(this->pillData[i].active && this->pillData[i].requests > 0) {
+          //this->pillData[i].servo.write(-37);
+          this->pillData[i].active = false;
+          this->pillData[i].requests-=1;
+          s1.write(0);
+        }
+      }
+    }
+
+    void test() {
+      s1.write(90);
+    }
+
+    bool requestWaiting() {
+      return (this->pillData[0].requests > 0 || this->pillData[1].requests > 0 || this->pillData[2].requests > 0);
+    }
+};
+
+ServoHandler servoHandler;
 
 class ServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *pServer) {
@@ -22,17 +96,30 @@ class ServerCallbacks : public BLEServerCallbacks {
   }
 };
 
+
+
+
 class ServoCallbacks : public BLECharacteristicCallbacks {
+
   void onWrite(BLECharacteristic *pCharacteristic) {
     Serial.println("recieved new value");
     String value = pCharacteristic->getValue();
+    for (char i : value) {
+      int data = i - '0';
+      servoHandler.sendRequest(data);
+    }
+    //ServoHandler::requests+=1;
     Serial.println(value);
   }
 };
 
 
+
+Servo test;
+
 void setup() {
   // put your setup code here, to run once:
+  
   Serial.begin(115200);
   Serial.println("starting BLE");
 
@@ -49,10 +136,6 @@ void setup() {
   
    
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  /*pAdvertising->addServiceUUID(SERVICE_UUID);
-  pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
-  pAdvertising->setMaxPreferred(0x12);*/
   //BLEDevice::startAdvertising();
   pServoCharacteristic->setCallbacks(new ServoCallbacks());
 
@@ -60,9 +143,20 @@ void setup() {
   pServer->getAdvertising()->start();
 
   Serial.println("init done");
+  
+  test.attach(4);
+
+  servoHandler.init();
+  
+  //Serial.println(test.attached());
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+
+  if(servoHandler.requestWaiting()) {
+
+    Serial.println("dispensing");
+    servoHandler.dispense();
+  }
   delay(1000);
 }
