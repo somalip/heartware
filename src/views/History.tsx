@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useMedication } from '../context/MedicationContext';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useAlert } from '../context/AlertContext';
 import { DispenseLog } from '../types';
 import { triggerHaptic } from '../utils/haptics';
 import { ManualLogModal } from '../components/ManualLogModal';
+import { exportLogsToCsv, printClinicalReport } from '../utils/exportUtils';
 
 const SOURCE_LABEL: Record<DispenseLog['dispensedBy'], string> = {
   scheduled_auto: 'Auto Scheduled',
@@ -18,12 +20,14 @@ type TimeFilter = 'today' | 'week' | 'month' | 'all';
 
 export function History() {
   const { logs, deleteLog } = useMedication();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const { showConfirm } = useAlert();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [showLogModal, setShowLogModal] = useState(false);
+  const [showExportOptions, setShowExportOptions] = useState(false);
 
   // Time boundaries
   const now = new Date();
@@ -61,7 +65,7 @@ export function History() {
   const totalPills = filteredLogs.reduce((acc, l) => acc + (l.pillsDispensed || 1), 0);
   const uniqueMeds = new Set(filteredLogs.map((l) => l.medicationName.toLowerCase().trim())).size;
 
-  const handleExport = () => {
+  const handleExportJson = () => {
     triggerHaptic('success');
     const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -71,6 +75,20 @@ export function History() {
     a.click();
     URL.revokeObjectURL(url);
     showToast('Exported clinical JSON report', 'success');
+    setShowExportOptions(false);
+  };
+
+  const handleExportCsv = () => {
+    triggerHaptic('success');
+    exportLogsToCsv(logs, user);
+    showToast('Exported EHR-compatible CSV report', 'success');
+    setShowExportOptions(false);
+  };
+
+  const handlePrintReport = () => {
+    triggerHaptic('selection');
+    printClinicalReport(logs, user);
+    setShowExportOptions(false);
   };
 
   const handleDeleteLog = async (log: DispenseLog) => {
@@ -126,13 +144,92 @@ export function History() {
             + Log Med
           </button>
           {logs.length > 0 && (
-            <button
-              type="button"
-              className="ios-nav-action"
-              onClick={handleExport}
-            >
-              Export
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="ios-nav-action"
+                onClick={() => {
+                  triggerHaptic('light');
+                  setShowExportOptions((v) => !v);
+                }}
+              >
+                Export ▾
+              </button>
+
+              {showExportOptions && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '6px',
+                    backgroundColor: 'var(--ios-card)',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                    border: '1px solid var(--ios-separator)',
+                    zIndex: 100,
+                    minWidth: '200px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={handlePrintReport}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      textAlign: 'left',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: '0.5px solid var(--ios-separator)',
+                      color: 'var(--ios-label)',
+                      fontSize: '13.5px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600 }}>Doctor's Report</div>
+                    <div style={{ fontSize: '11px', color: 'var(--ios-secondary)' }}>Printable clinical summary</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportCsv}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      textAlign: 'left',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: '0.5px solid var(--ios-separator)',
+                      color: 'var(--ios-label)',
+                      fontSize: '13.5px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600 }}>CSV Table</div>
+                    <div style={{ fontSize: '11px', color: 'var(--ios-secondary)' }}>Spreadsheet / EHR format</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportJson}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      textAlign: 'left',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--ios-label)',
+                      fontSize: '13.5px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600 }}>JSON Data</div>
+                    <div style={{ fontSize: '11px', color: 'var(--ios-secondary)' }}>Raw records backup</div>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -230,7 +327,7 @@ export function History() {
               <div className="ios-row-content">
                 <div className="ios-row-label">Unique Meds</div>
               </div>
-              <div className="ios-row-value-bold" style={{ color: 'var(--ios-blue)' }}>
+              <div className="ios-row-value-bold" style={{ color: 'var(--ios-label)' }}>
                 {uniqueMeds}
               </div>
             </div>

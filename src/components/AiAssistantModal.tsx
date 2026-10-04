@@ -17,7 +17,7 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
       id: 'welcome',
       role: 'assistant',
       content:
-        'Hello! I am your Heartware Clinical AI assistant. I can directly control your dispenser, actuate servos over BLE, check inventory, and verify medication safety.',
+        'Hello! I can check inventory, dispense medications, and verify safety limits. How can I help you?',
       timestamp: new Date().toLocaleTimeString(),
     },
   ]);
@@ -136,7 +136,7 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
       const errorMsg: AssistantMessage = {
         id: `err-${Date.now()}`,
         role: 'assistant',
-        content: `Error: ${err.message || 'Unable to execute request'}. If your Gemini API key is missing or invalid, tap the key icon above.`,
+        content: `Error: ${err.message || 'Unable to execute request'}. If your Gemini API key is missing or invalid, tap the key configuration button above.`,
         timestamp: new Date().toLocaleTimeString(),
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -147,16 +147,15 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
   };
 
   const chips = [
-    { label: '💊 Dispense Bottle 1', prompt: 'Please dispense 1 pill from Bottle 1.' },
-    { label: '📊 Status & Levels', prompt: 'What is the current status of my dispenser and bottle levels?' },
-    { label: '🔗 Morning Meds (1 & 2)', prompt: 'Dispense my morning medications from bottles 1 and 2 in a sequence.' },
-    { label: '🛡️ Check Safety', prompt: 'Is it clinically safe for me to take a dose from bottle 1 right now?' },
-    { label: '⚙️ Calibrate Servo 1', prompt: 'Calibrate Bottle 1 servo to 90 degrees.' },
+    { label: 'Dispense Bottle 1', prompt: 'Please dispense 1 pill from Bottle 1.' },
+    { label: 'Dispenser Status', prompt: 'What is the current status of my dispenser and bottle levels?' },
+    { label: 'Check Safety Limits', prompt: 'Is it clinically safe for me to take a dose from bottle 1 right now?' },
+    { label: 'Calibrate Servo 1', prompt: 'Calibrate Bottle 1 servo to 90 degrees.' },
   ];
 
   return (
     <IosSheet
-      title="Heartware Clinical AI"
+      title="AI Assistant"
       leftActionText="Done"
       onLeftAction={onClose}
       onClose={onClose}
@@ -169,8 +168,8 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '8px 12px',
-            backgroundColor: 'var(--ios-bar-bg)',
-            borderRadius: '12px',
+            backgroundColor: 'var(--ios-card)',
+            borderRadius: '8px',
             marginBottom: '10px',
             fontSize: '12px',
             border: '1px solid var(--ios-separator)',
@@ -185,10 +184,10 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
                 backgroundColor: hwState.connected ? 'var(--ios-green)' : 'var(--ios-orange)',
               }}
             />
-            <span style={{ fontWeight: 600 }}>
+            <span style={{ fontWeight: 500 }}>
               {hwState.connected
                 ? `${hwState.deviceId} (${hwState.connectionType.toUpperCase()})`
-                : 'Hardware: Simulated Virtual Link'}
+                : 'Simulated Hardware Link'}
             </span>
           </div>
           <button
@@ -197,14 +196,14 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--ios-blue)',
+              color: 'var(--ios-label)',
               cursor: 'pointer',
               fontWeight: 500,
               fontSize: '12px',
-              padding: '2px 6px',
+              padding: '2px 4px',
             }}
           >
-            {apiKey ? '🔑 Key Configured' : '⚠️ Set Gemini Key'}
+            {apiKey ? 'API Key Configured' : 'Set API Key'}
           </button>
         </div>
 
@@ -230,7 +229,7 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
               className="ios-input"
               style={{ fontSize: '13px', flex: 1 }}
             />
-            <button type="submit" className="ios-pill-btn blue">
+            <button type="submit" className="ios-pill-btn primary">
               Save Key
             </button>
           </form>
@@ -261,8 +260,8 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
               >
                 <div
                   style={{
-                    backgroundColor: isUser ? 'var(--ios-blue)' : 'var(--ios-card-bg)',
-                    color: isUser ? '#ffffff' : 'inherit',
+                    backgroundColor: isUser ? 'var(--ios-label)' : 'var(--ios-card)',
+                    color: isUser ? 'var(--ios-bg)' : 'inherit',
                     padding: '10px 14px',
                     borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                     fontSize: '14px',
@@ -301,12 +300,14 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
                         >
                           <span
                             style={{
-                              fontFamily: 'monospace',
-                              fontWeight: 700,
-                              color: 'var(--ios-blue)',
+                              fontFamily: 'inherit',
+                              fontWeight: 600,
+                              fontSize: '11px',
+                              color: 'var(--ios-label)',
+                              textTransform: 'capitalize',
                             }}
                           >
-                            ⚙️ {tool.name}
+                            {tool.name.replace(/_/g, ' ')}
                           </span>
                           <span
                             className={`ios-badge ${
@@ -314,41 +315,30 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
                             }`}
                             style={{ fontSize: '10px' }}
                           >
-                            {tool.status.toUpperCase()}
+                            {tool.status}
                           </span>
                         </div>
 
-                        {tool.bleCommand && (
-                          <div
-                            style={{
-                              fontSize: '11px',
-                              fontFamily: 'monospace',
-                              color: 'var(--ios-secondary)',
-                              marginBottom: '2px',
-                            }}
-                          >
-                            BLE TX: &quot;{tool.bleCommand}&quot; &rarr; ESP32 Servo
-                          </div>
-                        )}
-
-                        <div
-                          style={{
-                            fontSize: '11px',
-                            color: 'var(--ios-secondary)',
-                            backgroundColor: 'var(--ios-card-bg)',
-                            padding: '4px 6px',
-                            borderRadius: '6px',
-                            overflowX: 'auto',
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {JSON.stringify(tool.args)}
-                        </div>
-
-                        {tool.errorMessage && (
+                        {tool.errorMessage ? (
                           <div style={{ color: 'var(--ios-red)', marginTop: '4px', fontSize: '11px' }}>
                             {tool.errorMessage}
                           </div>
+                        ) : null}
+
+                        {(tool.bleCommand || (tool.args && Object.keys(tool.args).length > 0)) && (
+                          <details style={{ marginTop: '4px', fontSize: '11px', color: 'var(--ios-secondary)' }}>
+                            <summary style={{ cursor: 'pointer' }}>Technical details</summary>
+                            {tool.bleCommand && (
+                              <div style={{ marginTop: '3px', fontFamily: 'monospace', fontSize: '10px' }}>
+                                Command: {tool.bleCommand}
+                              </div>
+                            )}
+                            {tool.args && Object.keys(tool.args).length > 0 && (
+                              <div style={{ marginTop: '3px', fontFamily: 'monospace', fontSize: '10px' }}>
+                                {JSON.stringify(tool.args)}
+                              </div>
+                            )}
+                          </details>
                         )}
                       </div>
                     ))}
@@ -371,7 +361,7 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
 
           {loading && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px' }}>
-              <IosSpinner size={16} color="var(--ios-blue)" />
+              <IosSpinner size={16} color="var(--ios-label)" />
               <span style={{ fontSize: '13px', color: 'var(--ios-secondary)' }}>
                 Heartware AI evaluating clinical safety & executing tool...
               </span>
@@ -430,14 +420,13 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
               height: '40px',
               borderRadius: '50%',
               border: 'none',
-              backgroundColor: isListening ? 'var(--ios-red)' : 'var(--ios-bar-bg)',
-              color: isListening ? '#ffffff' : 'var(--ios-blue)',
+              backgroundColor: isListening ? 'var(--ios-red)' : 'var(--ios-fill)',
+              color: isListening ? '#ffffff' : 'var(--ios-label)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
               flexShrink: 0,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
             }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -462,10 +451,14 @@ export function AiAssistantModal({ onClose }: AiAssistantModalProps) {
 
           <button
             type="button"
-            className="ios-pill-btn blue"
+            className="ios-pill-btn"
             onClick={() => handleSend()}
             disabled={loading || !inputText.trim()}
-            style={{ flexShrink: 0 }}
+            style={{
+              flexShrink: 0,
+              backgroundColor: 'var(--ios-label)',
+              color: 'var(--ios-bg)',
+            }}
           >
             Send
           </button>

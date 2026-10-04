@@ -323,7 +323,7 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           prescribedBy: data.prescribedBy,
           active: true,
           shape: 'capsule',
-          pillColor: '#007aff',
+          pillColor: 'var(--ios-label)',
           activeIngredients: data.activeIngredients,
           maxDailyDoses: data.maxDailyDoses,
         };

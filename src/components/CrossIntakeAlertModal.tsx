@@ -82,7 +82,7 @@ export const CrossIntakeAlertModal: React.FC<Props> = ({
               background: 'none',
               border: 'none',
               padding: '4px 0',
-              color: 'var(--ios-blue)',
+              color: 'var(--ios-label)',
               fontSize: '12px',
               cursor: 'pointer',
               textAlign: 'left',
@@ -91,7 +91,7 @@ export const CrossIntakeAlertModal: React.FC<Props> = ({
               fontWeight: 500,
             }}
           >
-            <InfoIcon size={14} color="var(--ios-blue)" /> How is this limit calculated? View public clinical standards →
+            <InfoIcon size={14} color="var(--ios-label)" /> How is this limit calculated? View public clinical standards →
           </button>
         </div>
 

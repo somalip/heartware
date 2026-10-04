@@ -9,6 +9,7 @@ import { DailyIntakeSummaryCard } from '../components/DailyIntakeSummaryCard';
 import { CrossIntakeAlertModal } from '../components/CrossIntakeAlertModal';
 import { PrescriptionScannerModal } from '../components/PrescriptionScannerModal';
 import { AiAssistantModal } from '../components/AiAssistantModal';
+import { RefillForecastCard } from '../components/RefillForecastCard';
 import { medicationSafetyService } from '../services/medicationSafetyService';
 import { searchMedications, calculateAutomaticDailyLimit, findBestMatch } from '../data/medicationDatabase';
 import { triggerHaptic } from '../utils/haptics';
@@ -58,12 +59,9 @@ export function Dispenser() {
 
   const nextDose = getNextDoseInfo();
 
-  const [dispenseCounts, setDispenseCounts] = useState<Record<number, number>>({ 1: 1, 2: 1, 3: 1, 4: 1 });
-  const [testDispenseCount, setTestDispenseCount] = useState<number>(1);
-
-  const handleDispense = async (c: ChamberConfig, count?: number) => {
+  const handleDispense = async (c: ChamberConfig, count = 1) => {
     triggerHaptic('medium');
-    const pillsToDispense = count ?? dispenseCounts[c.servoId] ?? 1;
+    const pillsToDispense = count;
     const res = await dispenseNow(c.servoId, 'app_trigger', false, pillsToDispense);
 
     if (res.safetyEvaluation && !res.safetyEvaluation.safeToDispense) {
@@ -112,7 +110,7 @@ export function Dispenser() {
     if (!state.connected) {
       connectSimulated('Hardware link auto-started in simulation mode for test.');
     }
-    const pills = count ?? testDispenseCount ?? 1;
+    const pills = count ?? 1;
     const targetChamber = chambers.find(c => c.servoId === 1) || chambers[0];
     const res = await triggerDispense(targetChamber, pills);
     if (res.success) {
@@ -122,7 +120,7 @@ export function Dispenser() {
     }
   };
 
-  const slotColors = ['#007aff'];
+  const slotColors = ['var(--ios-label)'];
 
   return (
     <>
@@ -134,21 +132,16 @@ export function Dispenser() {
           <button
             type="button"
             className="ios-scan-header-btn"
-            style={{
-              background: 'linear-gradient(135deg, var(--ios-blue) 0%, #5856d6 100%)',
-              color: '#ffffff',
-              boxShadow: '0 2px 8px rgba(0, 122, 255, 0.25)',
-            }}
             onClick={() => {
               triggerHaptic('light');
               setShowAiAssistant(true);
             }}
-            title="Heartware Clinical AI Assistant (Gemini Tool Calling)"
+            title="AI Clinical Assistant"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
-            <span>Heartware AI</span>
+            <span>Assistant</span>
           </button>
 
           <button
@@ -160,7 +153,7 @@ export function Dispenser() {
             }}
             title="Scan Prescription Label"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
               <circle cx="12" cy="13" r="4" />
             </svg>
@@ -171,7 +164,7 @@ export function Dispenser() {
 
       {/* Responsive Grid: 2 Columns on Desktop, Single Column on Mobile */}
       <div className="dispenser-desktop-grid">
-        {/* Main Column: Status, Medication Bottles, Chained Multi-Pill Dispenser */}
+        {/* Main Column: Status, Medication Bottles */}
         <div className="dispenser-grid-main">
           {/* Up Next & Status Inset Group */}
           <div className="ios-section">
@@ -195,7 +188,7 @@ export function Dispenser() {
                 <div className="ios-row-content">
                   <div className="ios-row-label">Hardware Link</div>
                   <div className="ios-row-sublabel">
-                    {state.connected ? `${state.deviceId} (BLE Active)` : 'Not Paired'}
+                    {state.connected ? `${state.deviceId}` : 'Not Paired'}
                   </div>
                 </div>
                 <label className="ios-switch">
@@ -213,7 +206,7 @@ export function Dispenser() {
                   <div className="ios-row-label">Battery Level</div>
                 </div>
                 <div className="ios-row-value">
-                  {state.connected ? `${state.batteryLevel}% (LiPo)` : '—'}
+                  {state.connected ? `${state.batteryLevel}%` : '—'}
                 </div>
               </div>
             </div>
@@ -256,7 +249,7 @@ export function Dispenser() {
                       <div className="ios-row-sublabel">
                         {isConfigured ? (
                           <>
-                            {c.currentCount} of {c.maxCapacity} remaining · Bottle {c.servoId}
+                            {c.currentCount} of {c.maxCapacity} remaining
                             {dailyLimit ? ` · Max ${dailyLimit}/day (${dosesTakenToday} taken)` : ''}
                           </>
                         ) : (
@@ -265,9 +258,9 @@ export function Dispenser() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, marginLeft: 'auto', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, marginLeft: 'auto' }}>
                       {!isConfigured ? (
-                        <span className="ios-badge" style={{ backgroundColor: 'var(--ios-fill)', color: 'var(--ios-secondary)' }}>
+                        <span className="ios-badge" style={{ color: 'var(--ios-secondary)' }}>
                           Unset
                         </span>
                       ) : isEmpty ? (
@@ -280,54 +273,18 @@ export function Dispenser() {
                         <span className="ios-badge green">Ready</span>
                       )}
 
-                      {/* 1, 2, 3 Multi-Pill Selector */}
-                      {isConfigured && !isEmpty && (
-                        <div className="ios-pill-count-group" role="group" aria-label="Select number of pills to dispense">
-                          {[1, 2, 3].map((num) => {
-                            const hasInventory = c.currentCount >= num;
-                            const evalSafety = medicationSafetyService.validateDispenseSafety(c.servoId, chambers, logs, num);
-                            const isAllowed = hasInventory && evalSafety.safeToDispense;
-                            const isSelected = (dispenseCounts[c.servoId] ?? 1) === num;
-
-                            let title = `${num} pill${num > 1 ? 's' : ''}`;
-                            if (!hasInventory) {
-                              title = `Only ${c.currentCount} pill${c.currentCount === 1 ? '' : 's'} available in inventory`;
-                            } else if (!evalSafety.safeToDispense) {
-                              title = evalSafety.blockReason || 'Exceeds safety limit';
-                            }
-
-                            return (
-                              <button
-                                key={num}
-                                type="button"
-                                className={`ios-pill-count-btn ${isSelected ? 'active' : ''}`}
-                                disabled={state.isDispensing || !hasInventory || !isAllowed}
-                                onClick={() => {
-                                  triggerHaptic('selection');
-                                  setDispenseCounts((prev) => ({ ...prev, [c.servoId]: num }));
-                                }}
-                                title={title}
-                              >
-                                {num}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
                       <button
+                        type="button"
                         className="ios-nav-action primary"
-                        onClick={() => handleDispense(c)}
+                        onClick={() => handleDispense(c, 1)}
                         disabled={state.isDispensing || !isConfigured || isEmpty}
-                        title={`Dispense ${dispenseCounts[c.servoId] ?? 1} pill${(dispenseCounts[c.servoId] ?? 1) > 1 ? 's' : ''}`}
                       >
-                        {isCurrent && <IosSpinner size={13} color="var(--ios-blue)" />}
-                        {isCurrent
-                          ? 'Moving…'
-                          : `Dispense ${isConfigured && !isEmpty ? `${dispenseCounts[c.servoId] ?? 1}x` : ''}`}
+                        {isCurrent && <IosSpinner size={13} color="var(--ios-bg)" />}
+                        {isCurrent ? 'Moving…' : 'Dispense'}
                       </button>
 
                       <button
+                        type="button"
                         className="ios-nav-action"
                         onClick={() => {
                           triggerHaptic('light');
@@ -344,8 +301,11 @@ export function Dispenser() {
           </div>
         </div>
 
-        {/* Side Column: Medication Safety Limits & Dispenser Hardware */}
+        {/* Side Column: Refill Forecast, Medication Safety Limits & Dispenser Hardware */}
         <div className="dispenser-grid-side">
+          {/* Smart Supply & Refill Forecaster */}
+          <RefillForecastCard />
+
           {/* Medication Safety & Daily Intake Limit Tracker */}
           <DailyIntakeSummaryCard />
 
@@ -363,7 +323,7 @@ export function Dispenser() {
                         backgroundColor: state.connected
                           ? state.connectionType === 'ble'
                             ? 'var(--ios-green)'
-                            : 'var(--ios-blue)'
+                            : 'var(--ios-label)'
                           : 'var(--ios-red)'
                       }}
                     />
@@ -434,53 +394,71 @@ export function Dispenser() {
                 </div>
               )}
 
-              {/* Test Dispense Section (1, 2, 3 pills) */}
+              {/* Test Dispense Section */}
               <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '0.5px solid var(--ios-separator)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ios-secondary)' }}>
-                    Test Dispense Pills
-                  </span>
-                  <div className="ios-pill-count-group" role="group" aria-label="Select test pill count">
-                    {[1, 2, 3].map((num) => (
-                      <button
-                        key={num}
-                        type="button"
-                        className={`ios-pill-count-btn ${testDispenseCount === num ? 'active' : ''}`}
-                        disabled={state.isDispensing}
-                        onClick={() => {
-                          triggerHaptic('selection');
-                          setTestDispenseCount(num);
-                        }}
-                      >
-                        {num}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <button
                   type="button"
                   className="ios-ble-btn"
                   style={{
                     width: '100%',
                     justifyContent: 'center',
-                    padding: '10px 14px',
-                    fontWeight: 600,
-                    fontSize: '13.5px',
+                    padding: '8px 12px',
+                    fontWeight: 500,
+                    fontSize: '13px',
                   }}
-                  onClick={() => handleTestDispense(testDispenseCount)}
+                  onClick={() => handleTestDispense(1)}
                   disabled={state.isDispensing}
                 >
                   {state.isDispensing ? (
                     <IosSpinner size={14} color="var(--ios-label)" />
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="8" y1="12" x2="16" y2="12" />
-                    </svg>
-                  )}
-                  <span>{state.isDispensing ? 'Dispensing…' : `Dispense ${testDispenseCount} test pill${testDispenseCount > 1 ? 's' : ''}`}</span>
+                  ) : null}
+                  <span>{state.isDispensing ? 'Dispensing…' : 'Test Dispense (Bottle 1)'}</span>
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Hardware OLED Screen Live Monitor */}
+          <div className="ios-section">
+            <div className="ios-section-header">ESP32 OLED Display (128x64)</div>
+            <div style={{
+              background: '#0a0d14',
+              borderRadius: '12px',
+              padding: '14px 16px',
+              border: '2px solid #1e2638',
+              boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0,0,0,0.15)',
+              fontFamily: '"SF Mono", "Courier New", Courier, monospace',
+              color: '#38bdf8',
+              letterSpacing: '0.5px',
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid rgba(56, 189, 248, 0.3)',
+                paddingBottom: '4px',
+                marginBottom: '8px',
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>♥</span> HEARTWARE OLED
+                </span>
+                <span style={{ color: state.connected ? '#4ade80' : '#f87171' }}>
+                  {state.connected ? '● BLE' : '○ NO LINK'}
+                </span>
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 600, minHeight: '18px', color: state.isDispensing ? '#facc15' : '#38bdf8' }}>
+                {state.oledText.line1 || 'HEARTWARE v2.4'}
+              </div>
+              <div style={{ fontSize: '12px', minHeight: '17px', color: state.isDispensing ? '#ffffff' : '#93c5fd', marginTop: '2px' }}>
+                {state.oledText.line2 || 'STATUS: READY'}
+              </div>
+              <div style={{ fontSize: '11px', minHeight: '16px', color: '#7dd3fc', marginTop: '2px' }}>
+                {state.oledText.line3 || 'CHAMBERS: 1, 2, 3 OK'}
+              </div>
+              <div style={{ fontSize: '10px', minHeight: '15px', color: '#38bdf8', opacity: 0.8, marginTop: '2px' }}>
+                {state.oledText.line4 || 'STANDBY'}
               </div>
             </div>
           </div>

@@ -39,7 +39,7 @@ export const DailyIntakeSummaryCard: React.FC = () => {
               }}
               style={{
                 fontSize: '13px',
-                color: 'var(--ios-blue)',
+                color: 'var(--ios-label)',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
@@ -50,7 +50,7 @@ export const DailyIntakeSummaryCard: React.FC = () => {
               }}
               title="Clinical sources and calculation methodology"
             >
-              <InfoIcon size={14} color="var(--ios-blue)" />
+              <InfoIcon size={14} color="var(--ios-label)" />
               <span style={{ textDecoration: 'underline' }}>Info</span>
             </button>
           </div>
@@ -62,7 +62,7 @@ export const DailyIntakeSummaryCard: React.FC = () => {
                 triggerHaptic('light');
                 setExpanded(!expanded);
               }}
-              style={{ fontSize: '13px', color: 'var(--ios-blue)', background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{ fontSize: '13px', color: 'var(--ios-label)', background: 'none', border: 'none', cursor: 'pointer' }}
             >
               {expanded ? 'Show Less' : 'Details'}
             </button>
@@ -147,7 +147,7 @@ export const DailyIntakeSummaryCard: React.FC = () => {
             background: 'none',
             border: 'none',
             padding: 0,
-            color: 'var(--ios-blue)',
+            color: 'var(--ios-label)',
             fontSize: '12.5px',
             textAlign: 'left',
             cursor: 'pointer',

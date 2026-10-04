@@ -57,10 +57,10 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       {children}
       {toast && (
         <div
-          className={`ios-island-hud ${toast.type}`}
+          className={`app-toast ios-island-hud ${toast.type}`}
           role="status"
           onClick={dismiss}
-          title="Swipe or tap to dismiss"
+          title="Dismiss"
         >
           <div className="ios-island-content">
             <span className="ios-island-icon">

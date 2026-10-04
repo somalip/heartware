@@ -77,7 +77,7 @@ export const MedicationSafetyInfoModal: React.FC<Props> = ({
               fontSize: '14px',
             }}
           >
-            <BuildingIcon size={16} color="var(--ios-blue)" />
+            <BuildingIcon size={16} color="var(--ios-label)" />
             <span>Reliable & Public Clinical Data Sources</span>
           </div>
           Heartware dosage ceilings and drug interaction thresholds are sourced
@@ -234,7 +234,7 @@ export const MedicationSafetyInfoModal: React.FC<Props> = ({
                   </div>
                 </div>
 
-                <div style={{ fontSize: '12px', color: 'var(--ios-blue)', fontWeight: 500, marginBottom: '6px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--ios-label)', fontWeight: 500, marginBottom: '6px' }}>
                   {source.authority} · {source.citation}
                 </div>
 
@@ -252,7 +252,7 @@ export const MedicationSafetyInfoModal: React.FC<Props> = ({
                     alignItems: 'center',
                     gap: '4px',
                     fontSize: '12px',
-                    color: 'var(--ios-blue)',
+                    color: 'var(--ios-label)',
                     textDecoration: 'none',
                     fontWeight: 600,
                   }}
@@ -350,8 +350,8 @@ export const MedicationSafetyInfoModal: React.FC<Props> = ({
                       padding: '4px 10px',
                       fontSize: '12px',
                       fontWeight: selectedClass === cls ? 600 : 400,
-                      background: selectedClass === cls ? 'var(--ios-blue)' : 'var(--ios-fill)',
-                      color: selectedClass === cls ? '#ffffff' : 'var(--ios-secondary)',
+                      background: selectedClass === cls ? 'var(--ios-label)' : 'var(--ios-fill)',
+                      color: selectedClass === cls ? 'var(--ios-bg)' : 'var(--ios-secondary)',
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
                       textTransform: cls === 'nsaid' ? 'uppercase' : 'capitalize',
@@ -434,7 +434,7 @@ export const MedicationSafetyInfoModal: React.FC<Props> = ({
                         href={item.referenceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: 'var(--ios-blue)', textDecoration: 'none', fontWeight: 600 }}
+                        style={{ color: 'var(--ios-label)', textDecoration: 'none', fontWeight: 600 }}
                       >
                         NIH Monograph ↗
                       </a>

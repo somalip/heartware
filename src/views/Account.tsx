@@ -5,6 +5,7 @@ import { useAlert } from '../context/AlertContext';
 import { storageService } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { MedicationSafetyInfoModal } from '../components/MedicationSafetyInfoModal';
+import { EmergencyRelayModal } from '../components/EmergencyRelayModal';
 import { triggerHaptic } from '../utils/haptics';
 
 export function Account() {
@@ -17,6 +18,7 @@ export function Account() {
   const [contactPhone, setContactPhone] = useState(user?.emergencyContact.phone ?? '');
   const [notifPerm, setNotifPerm] = useState(notificationService.getPermission());
   const [showSafetyModal, setShowSafetyModal] = useState(false);
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const isStandalone = notificationService.isStandalone();
 
   if (!user) return null;
@@ -136,6 +138,23 @@ export function Account() {
                     placeholder="Phone number"
                   />
                 </div>
+                <div
+                  className="ios-row interactive"
+                  onClick={() => {
+                    triggerHaptic('medium');
+                    setShowEmergencyModal(true);
+                  }}
+                >
+                  <div className="ios-row-content">
+                    <div className="ios-row-title" style={{ color: 'var(--ios-red)' }}>
+                      Test Emergency SOS & SMS Relay
+                    </div>
+                    <div className="ios-row-sublabel">
+                      Preview caregiver call & automated status alert
+                    </div>
+                  </div>
+                  <div className="ios-chevron" style={{ color: 'var(--ios-tertiary)', fontSize: '20px' }}>›</div>
+                </div>
               </div>
             </div>
 
@@ -175,7 +194,7 @@ export function Account() {
                 ) : (
                   <button
                     type="button"
-                    className="ios-pill-btn blue"
+                    className="ios-pill-btn primary"
                     onClick={handleEnableNotifications}
                   >
                     Enable
@@ -239,6 +258,10 @@ export function Account() {
 
       {showSafetyModal && (
         <MedicationSafetyInfoModal onClose={() => setShowSafetyModal(false)} />
+      )}
+
+      {showEmergencyModal && (
+        <EmergencyRelayModal onClose={() => setShowEmergencyModal(false)} />
       )}
     </>
   );

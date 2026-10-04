@@ -480,7 +480,7 @@ export const PrescriptionScannerModal: React.FC<Props> = ({
           style={{
             background: 'none',
             border: 'none',
-            color: 'var(--color-primary, #007aff)',
+            color: 'var(--ios-label)',
             fontWeight: 600,
             fontSize: '12px',
             cursor: 'pointer',
@@ -573,7 +573,6 @@ export const PrescriptionScannerModal: React.FC<Props> = ({
                   <div className="ios-viewfinder-corner tr" />
                   <div className="ios-viewfinder-corner bl" />
                   <div className="ios-viewfinder-corner br" />
-                  <div className="ios-scan-laser-line" />
                   <div className="ios-viewfinder-hint">Align Bottle Label or Barcode</div>
                 </div>
               </div>
@@ -603,7 +602,7 @@ export const PrescriptionScannerModal: React.FC<Props> = ({
               strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{ color: 'var(--ios-blue)' }}
+              style={{ color: 'var(--ios-label)' }}
             >
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
               <circle cx="12" cy="13" r="4" />
@@ -647,7 +646,7 @@ export const PrescriptionScannerModal: React.FC<Props> = ({
       {/* Processing Spinner */}
       {isProcessing && (
         <div className="ios-processing-banner">
-          <IosSpinner size={20} color="var(--ios-blue)" />
+          <IosSpinner size={20} color="var(--ios-label)" />
           <span>{processingStatus}</span>
         </div>
       )}
@@ -768,9 +767,9 @@ export const PrescriptionScannerModal: React.FC<Props> = ({
               type="button"
               className="ios-badge"
               style={{
-                background: 'rgba(0, 122, 255, 0.1)',
-                color: 'var(--color-primary, #007aff)',
-                border: '1px solid rgba(0, 122, 255, 0.3)',
+                background: 'var(--ios-fill)',
+                color: 'var(--ios-label)',
+                border: '1px solid var(--ios-separator)',
                 padding: '3px 8px',
                 borderRadius: '6px',
                 cursor: 'pointer',
@@ -1123,7 +1122,7 @@ export const PrescriptionScannerModal: React.FC<Props> = ({
                   padding: '8px 12px',
                   borderRadius: '8px',
                   fontSize: '13px',
-                  color: 'var(--color-primary, #007aff)',
+                  color: 'var(--ios-label)',
                   textDecoration: 'none',
                   fontWeight: 500,
                   marginRight: 'auto',
@@ -1137,7 +1136,7 @@ export const PrescriptionScannerModal: React.FC<Props> = ({
                 style={{
                   padding: '8px 14px',
                   borderRadius: '8px',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: '1px solid var(--ios-separator)',
                   backgroundColor: 'transparent',
                   color: 'inherit',
                   fontSize: '13px',
@@ -1167,8 +1166,8 @@ export const PrescriptionScannerModal: React.FC<Props> = ({
                   padding: '8px 16px',
                   borderRadius: '8px',
                   border: 'none',
-                  backgroundColor: 'var(--color-primary, #007aff)',
-                  color: '#ffffff',
+                  backgroundColor: 'var(--ios-label)',
+                  color: 'var(--ios-bg)',
                   fontSize: '13px',
                   fontWeight: 600,
                   cursor: isTestingKey ? 'wait' : 'pointer',

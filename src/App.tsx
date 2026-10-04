@@ -90,14 +90,18 @@ function Shell() {
   const [showAiModal, setShowAiModal] = useState(false);
   const { schedules, chambers } = useMedication();
   const { state: hwState } = useHardware();
-  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Responsive desktop detection for navigation layout
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 840 : false
+  );
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 30);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    const mql = window.matchMedia('(min-width: 840px)');
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    setIsDesktop(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
   }, []);
 
   // Monitor dosing timetable routines and fire Lock Screen notifications
@@ -112,8 +116,6 @@ function Shell() {
 
   if (!user) return <Login />;
 
-  const currentTabTitle = TABS.find(([id]) => id === tab)![1];
-
   const handleTabSelect = (newTab: Tab) => {
     if (newTab === tab) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -126,13 +128,14 @@ function Shell() {
 
   return (
     <div className="app-shell">
-      {/* Desktop Sidebar Navigation (Visible >= 840px) */}
-      <aside className="desktop-sidebar" aria-label="Desktop Navigation">
-        <div className="desktop-sidebar-header">
-          <div className="desktop-sidebar-brand">
-            <h2 className="desktop-sidebar-title">Heartware Dashboard</h2>
+      {/* Desktop Sidebar Navigation (Rendered ONLY on Desktop >= 840px) */}
+      {isDesktop && (
+        <aside className="desktop-sidebar" aria-label="Desktop Navigation">
+          <div className="desktop-sidebar-header">
+            <div className="desktop-sidebar-brand">
+              <h2 className="desktop-sidebar-title">Heartware</h2>
+            </div>
           </div>
-        </div>
 
         {/* Live Hardware Status Pill */}
         <div className="desktop-hardware-badge">
@@ -148,8 +151,8 @@ function Shell() {
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {hwState.connected
               ? hwState.connectionType === 'ble'
-                ? 'ESP32 (BLE Active)'
-                : 'Virtual ESP32'
+                ? 'Connected (BLE)'
+                : 'Connected (Simulated)'
               : 'Disconnected'}
           </span>
           {hwState.connected && (
@@ -177,26 +180,20 @@ function Shell() {
             );
           })}
 
-          {/* Heartware Clinical AI Desktop Action */}
+          {/* AI Clinical Assistant Desktop Action */}
           <button
             type="button"
             className="desktop-nav-item"
-            style={{
-              marginTop: '10px',
-              background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.12) 0%, rgba(88, 86, 214, 0.12) 100%)',
-              color: 'var(--ios-blue)',
-              borderColor: 'rgba(0, 122, 255, 0.3)',
-              fontWeight: 600,
-            }}
+            style={{ marginTop: '8px' }}
             onClick={() => {
               triggerHaptic('light');
               setShowAiModal(true);
             }}
           >
-            <svg className="ios-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            <svg className="ios-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
-            <span>Heartware AI</span>
+            <span>AI Assistant</span>
           </button>
         </nav>
 
@@ -207,24 +204,15 @@ function Shell() {
           </div>
           <div className="desktop-user-info">
             <div className="desktop-user-name">{user?.name || user?.email || 'User'}</div>
-            <div className="desktop-user-role">{user?.role || 'Patient'} Mode</div>
+            <div className="desktop-user-role">{user?.role || 'Patient'}</div>
           </div>
         </div>
       </aside>
+      )}
 
       {/* Main App Content Viewport */}
       <div className="app-main-content">
-        {/* Notch & Dynamic Island Upper Edge Background Fill (Mobile) */}
-        <div className="ios-status-fill" />
-
-        {/* iOS Translucent Collapsing Navigation Bar (Mobile) */}
-        <header className={`ios-nav-header ${isScrolled ? 'scrolled' : ''}`}>
-          <div className="ios-nav-content">
-            <div className="ios-nav-title">{currentTabTitle}</div>
-          </div>
-        </header>
-
-        {/* Main Screen Container with iOS Safe-Area Padding */}
+        {/* Main Screen Container with Safe-Area Padding */}
         <main className="ios-screen" key={tab}>
           {tab === 'dispenser' && <Dispenser />}
           {tab === 'schedule' && <Schedule />}
@@ -232,43 +220,30 @@ function Shell() {
           {tab === 'account' && <Account />}
         </main>
 
-        {/* Floating AI Tool Calling Assistant Button on Mobile */}
-        <button
-          type="button"
-          className="ios-floating-ai-fab"
-          onClick={() => {
-            triggerHaptic('medium');
-            setShowAiModal(true);
-          }}
-          title="Heartware Clinical AI (Gemini Tool Calling)"
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-          </svg>
-        </button>
-
         {/* Global Heartware Clinical AI Tool Calling Assistant Modal */}
         {showAiModal && (
           <AiAssistantModal onClose={() => setShowAiModal(false)} />
         )}
 
-        {/* iOS Frosted Bottom Tab Bar (Mobile) */}
-        <nav className="ios-tab-bar" aria-label="Main Navigation">
-          {TABS.map(([id, label]) => {
-            const isActive = tab === id;
-            return (
-              <button
-                key={id}
-                className={`ios-tab-item ${isActive ? 'active' : ''}`}
-                onClick={() => handleTabSelect(id)}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <TabIcon tab={id} active={isActive} />
-                <span className="ios-tab-label">{label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        {/* iOS Frosted Bottom Tab Bar (Mobile only) */}
+        {!isDesktop && (
+          <nav className="ios-tab-bar" aria-label="Main Navigation">
+            {TABS.map(([id, label]) => {
+              const isActive = tab === id;
+              return (
+                <button
+                  key={id}
+                  className={`ios-tab-item ${isActive ? 'active' : ''}`}
+                  onClick={() => handleTabSelect(id)}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <TabIcon tab={id} active={isActive} />
+                  <span className="ios-tab-label">{label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
       </div>
     </div>
   );

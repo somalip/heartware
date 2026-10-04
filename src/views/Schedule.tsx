@@ -6,25 +6,45 @@ import { ChamberConfig } from '../types';
 import { IosSheet } from '../components/IosSheet';
 import { PrescriptionScannerModal } from '../components/PrescriptionScannerModal';
 import { triggerHaptic } from '../utils/haptics';
-
-import { medicationSafetyService } from '../services/medicationSafetyService';
 import { CrossIntakeAlertModal } from '../components/CrossIntakeAlertModal';
 import { DispenseSafetyEvaluation } from '../types';
 
 type SlotId = ChamberConfig['servoId'];
 
 export function Schedule() {
-  const { schedules, chambers, logs, deleteSchedule, dispenseNow, applyPrescriptionScan } = useMedication();
+  const { schedules, chambers, logs, deleteSchedule, dispenseNow, applyPrescriptionScan, calculateAdherenceRate } = useMedication();
   const { showToast } = useToast();
   const { showConfirm } = useAlert();
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [scheduleCounts, setScheduleCounts] = useState<Record<string, number>>({});
   const [safetyAlert, setSafetyAlert] = useState<{
     evaluation: DispenseSafetyEvaluation;
     chamber: ChamberConfig;
     requestedCount: number;
   } | null>(null);
+
+  const adherenceRate = calculateAdherenceRate();
+
+  // Find if any routine was scheduled for earlier today but has no log today
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const todayLogs = logs.filter((l) => new Date(l.timestamp).getTime() >= startOfToday);
+
+  const missedDoses = schedules.filter((s) => {
+    if (!s.active) return false;
+    const hasPastTime = s.times.some((t) => {
+      if (!/^\d{2}:\d{2}$/.test(t)) return false;
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m < nowMinutes;
+    });
+    if (!hasPastTime) return false;
+    // Check if logged today for this chamber/medication
+    const wasTaken = todayLogs.some(
+      (l) => l.chamberId === s.chamberId || l.medicationName.toLowerCase() === s.medicationName.toLowerCase()
+    );
+    return !wasTaken;
+  });
 
   const nameFor = (id: SlotId, fallback: string) =>
     chambers.find((c) => c.servoId === id)?.medicationName ?? fallback;
@@ -108,6 +128,67 @@ export function Schedule() {
         </div>
       </div>
 
+      {/* Adherence & Missed-Dose Catch-Up Alert Banner */}
+      {missedDoses.length > 0 && (
+        <div className="ios-section" style={{ marginBottom: '16px' }}>
+          <div
+            style={{
+              backgroundColor: 'rgba(255, 149, 0, 0.12)',
+              border: '1px solid rgba(255, 149, 0, 0.35)',
+              borderRadius: '12px',
+              padding: '14px 16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#b26a00', fontWeight: 600, fontSize: '15px' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span>Potential Missed Dose</span>
+            </div>
+            <p style={{ margin: '6px 0 10px', fontSize: '13px', color: 'var(--ios-label)', lineHeight: 1.4 }}>
+              {missedDoses.map((m) => m.medicationName).join(', ')} had a routine scheduled earlier today that has not been logged. If you forgot your dose, take it when remembered unless it is almost time for your next scheduled dose. Never take a double dose.
+            </p>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {missedDoses.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className="ios-pill-btn primary"
+                  style={{ fontSize: '12px' }}
+                  onClick={() => handleManualDispense(m.chamberId, 1)}
+                >
+                  Dispense {m.medicationName} Now
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Overall Adherence Progress Card */}
+      <div className="ios-section" style={{ marginBottom: '16px' }}>
+        <div className="ios-list">
+          <div className="ios-row">
+            <div className="ios-row-content">
+              <div className="ios-row-label">30-Day Adherence Health Score</div>
+              <div className="ios-row-sublabel">Calculated from confirmed doses vs missed logs</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span
+                style={{
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: adherenceRate >= 80 ? 'var(--ios-green)' : adherenceRate >= 60 ? 'var(--ios-orange, #ff9500)' : 'var(--ios-red)',
+                }}
+              >
+                {adherenceRate}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="ios-section">
         <div className="ios-section-header">Routines</div>
         {sorted.length === 0 ? (
@@ -152,48 +233,14 @@ export function Schedule() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', padding: '8px 16px 12px', borderTop: '0.5px solid var(--ios-separator)', flexWrap: 'wrap' }}>
-                    {chamber && chamber.currentCount > 0 && (
-                      <div className="ios-pill-count-group" role="group" aria-label="Select pill count">
-                        {[1, 2, 3].map((num) => {
-                          const hasInv = chamber.currentCount >= num;
-                          const safetyEval = medicationSafetyService.validateDispenseSafety(s.chamberId, chambers, logs, num);
-                          const isSafe = hasInv && safetyEval.safeToDispense;
-                          const isSelected = (scheduleCounts[s.id] ?? 1) === num;
-
-                          let title = `${num} pill${num > 1 ? 's' : ''}`;
-                          if (!hasInv) {
-                            title = `Only ${chamber.currentCount} pill${chamber.currentCount === 1 ? '' : 's'} available in inventory`;
-                          } else if (!safetyEval.safeToDispense) {
-                            title = safetyEval.blockReason || 'Exceeds safety limit';
-                          }
-
-                          return (
-                            <button
-                              key={num}
-                              type="button"
-                              className={`ios-pill-count-btn ${isSelected ? 'active' : ''}`}
-                              disabled={!hasInv || !isSafe}
-                              onClick={() => {
-                                triggerHaptic('selection');
-                                setScheduleCounts((prev) => ({ ...prev, [s.id]: num }));
-                              }}
-                              title={title}
-                            >
-                              {num}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', padding: '8px 16px 12px', borderTop: '0.5px solid var(--ios-separator)' }}>
                     <button
                       type="button"
                       className="ios-nav-action primary"
-                      disabled={!chamber || chamber.currentCount < (scheduleCounts[s.id] ?? 1)}
-                      onClick={() => handleManualDispense(s.chamberId, scheduleCounts[s.id] ?? 1)}
+                      disabled={!chamber || chamber.currentCount < 1}
+                      onClick={() => handleManualDispense(s.chamberId, 1)}
                     >
-                      Dispense {scheduleCounts[s.id] ?? 1}x
+                      Dispense
                     </button>
                     <button
                       type="button"
