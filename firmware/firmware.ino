@@ -26,48 +26,58 @@ class ServoHandler {
     Servo s3;
 
     ServoHandler() {
-      for(int i = 0; i < 3; i++) {
-        this->pillData[i].requests = 0;
-        //this->pillData[i].servo.attach(5);
-        this->pillData[i].active = false;
-        s1.attach(5);
-        s2.attach(6);
-        s3.attach(7);
-        Serial.println("init servos");
-      }
     }
 
     void init() {
       for(int i = 0; i < 3; i++) {
         this->pillData[i].requests = 0;
-        //this->pillData[i].servo.attach(5);
+        //this->pillData[i].servo.attach(i+5);
         this->pillData[i].active = false;
         s1.attach(5);
-        s2.attach(6);
-        s3.attach(7);
+        s2.attach(4);
+        s3.attach(3);
         Serial.println("init servos");
       }
     }
 
     void sendRequest(int pill) {
-      pillData[pill].requests += 1;
+      Serial.printf("got req %d \n",pill);
+      pillData[pill-1].requests += 1;
     }
 
     void dispense() {
       for(int i = 0; i < 3; i++) {
         if(!this->pillData[i].active && this->pillData[i].requests > 0) {
           this->pillData[i].active = true;
-          //this->pillData[i].servo.write(90);
-          s1.write(90);
+          //this->pillData[i].servo.write(127);
+          switch(i) {
+            case 0:
+              Serial.println("1");
+              s1.write(127);break;
+            case 1:
+              Serial.println("2");
+              s2.write(127);break;
+            case 2:
+              Serial.println("3");
+              s3.write(127);break;
+          }
+          //s1.write(90);
         }
       }
       delay(100);
       for(int i = 0; i < 3; i++) {
         if(this->pillData[i].active && this->pillData[i].requests > 0) {
-          //this->pillData[i].servo.write(-37);
           this->pillData[i].active = false;
           this->pillData[i].requests-=1;
-          s1.write(0);
+          //s1.write(0);
+          switch(i) {
+            case 0:
+              s1.write(0);break;
+            case 1:
+              s2.write(0);break;
+            case 2:
+              s3.write(0);break;
+          }
         }
       }
     }
@@ -115,8 +125,6 @@ class ServoCallbacks : public BLECharacteristicCallbacks {
 
 
 
-Servo test;
-
 void setup() {
   // put your setup code here, to run once:
   
@@ -144,7 +152,6 @@ void setup() {
 
   Serial.println("init done");
   
-  test.attach(4);
 
   servoHandler.init();
   
@@ -153,10 +160,10 @@ void setup() {
 
 void loop() {
 
-  if(servoHandler.requestWaiting()) {
+   if(true/*servoHandler.requestWaiting()*/) {
 
     Serial.println("dispensing");
     servoHandler.dispense();
   }
-  delay(1000);
+  delay(1500);
 }
