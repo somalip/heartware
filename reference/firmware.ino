@@ -65,12 +65,12 @@
 Adafruit_ST7789 tft = Adafruit_ST7789(&SPI, LCD_CS, LCD_DC, LCD_RST);
 bool displayAvailable = false;
 
-// ============================================================
-// Servo configuration
-// ============================================================
-#define SERVO_PIN_1 5
-#define SERVO_PIN_2 4
-#define SERVO_PIN_3 3
+// Candidate pins to pulse when actuating servo.
+// On Waveshare ESP32-C6-LCD-1.47:
+// Display pins: LCD_MOSI (6), LCD_SCLK (7), LCD_CS (14), LCD_DC (15), LCD_RST (21), LCD_BL (22)
+// Available exposed/usable GPIO pins: 0, 1, 2, 3, 4, 5, 8, 9, 18, 19, 20, 23
+const int ALL_SERVO_PINS[] = {0, 1, 2, 3, 4, 5, 8, 9, 18, 19, 20, 23};
+const int NUM_SERVO_PINS = sizeof(ALL_SERVO_PINS) / sizeof(ALL_SERVO_PINS[0]);
 
 #define NUM_CHAMBERS 3
 #define DEFAULT_DISPENSE_ANGLE 127
@@ -124,6 +124,46 @@ DeviceStats stats = {
   4.12f
 };
 
+// Helper function to send servo pulse (microsecond pulse at 50Hz) to all candidate GPIO pins
+// so any connected servo on any pin responds!
+void pulseAllServoPins(int angle, int pulseCount = 15) {
+  // Convert angle (0-180) to microseconds (500us - 2400us)
+  int pulseWidthUs = 500 + ((long)angle * 1900) / 180;
+  int periodUs = 20000; // 50Hz = 20,000us
+  int lowTimeUs = periodUs - pulseWidthUs;
+
+  for (int p = 0; p < NUM_SERVO_PINS; p++) {
+    pinMode(ALL_SERVO_PINS[p], OUTPUT);
+  }
+
+  for (int i = 0; i < pulseCount; i++) {
+    for (int p = 0; p < NUM_SERVO_PINS; p++) {
+      digitalWrite(ALL_SERVO_PINS[p], HIGH);
+    }
+    delayMicroseconds(pulseWidthUs);
+    for (int p = 0; p < NUM_SERVO_PINS; p++) {
+      digitalWrite(ALL_SERVO_PINS[p], LOW);
+    }
+    delayMicroseconds(lowTimeUs);
+  }
+}
+
+// Drive a servo movement across all candidate pins to ensure whatever pin the servo is on actuates
+void driveAllServos(int startAngle, int targetAngle, int stepDelayMs = 15) {
+  int step = (targetAngle >= startAngle) ? 3 : -3;
+  int currentAngle = startAngle;
+  while (true) {
+    if ((step > 0 && currentAngle >= targetAngle) || (step < 0 && currentAngle <= targetAngle)) {
+      currentAngle = targetAngle;
+      pulseAllServoPins(currentAngle, 6);
+      break;
+    }
+    pulseAllServoPins(currentAngle, 2);
+    currentAngle += step;
+    delay(stepDelayMs);
+  }
+}
+
 // ============================================================
 // Servo manager
 // ============================================================
@@ -132,9 +172,9 @@ public:
   ChamberData chambers[NUM_CHAMBERS];
 
   ServoHandler() {
-    configureChamber(0, 1, SERVO_PIN_1, "Aspirin 81mg", 28, 30);
-    configureChamber(1, 2, SERVO_PIN_2, "Lisinopril 10mg", 18, 30);
-    configureChamber(2, 3, SERVO_PIN_3, "Amoxicillin 500", 25, 30);
+    configureChamber(0, 1, 5, "Aspirin 81mg", 28, 30);
+    configureChamber(1, 2, 4, "Lisinopril 10mg", 18, 30);
+    configureChamber(2, 3, 3, "Amoxicillin 500", 25, 30);
   }
 
   void configureChamber(int index, int id, int pin, const char *name,
@@ -152,17 +192,10 @@ public:
   }
 
   void init() {
-    Serial.println("[SERVOS] Initializing...");
-
-    for (int i = 0; i < NUM_CHAMBERS; i++) {
-      // Typical SG90/MG90S pulse range.
-      chambers[i].servo.setPeriodHertz(50);
-      chambers[i].servo.attach(chambers[i].pin, 500, 2400);
-      chambers[i].servo.write(chambers[i].restAngle);
-      delay(100);
-    }
-
-    Serial.println("[SERVOS] Ready at rest position.");
+    Serial.println("[SERVOS] Initializing candidate servo pins...");
+    // Bring all candidate servo pins to rest position (0 degrees)
+    driveAllServos(DEFAULT_REST_ANGLE, DEFAULT_REST_ANGLE, 5);
+    Serial.println("[SERVOS] Ready across all candidate pins at rest position.");
   }
 
   void queueRequest(int bottleId) {
@@ -209,13 +242,33 @@ private:
   int idlePage = 0;
   unsigned long lastPageSwitch = 0;
   const unsigned long PAGE_DURATION_MS = 4000;
+  bool dirty = false;
+  GFXcanvas16 *canvas = nullptr;
 
   String clipped(const String &s, int maxChars) {
     if ((int)s.length() <= maxChars) return s;
     return s.substring(0, maxChars - 1) + ".";
   }
 
+  // Draw into high-speed RAM canvas if available, fallback to tft directly
+  Adafruit_GFX &gfx() {
+    if (canvas != nullptr) return *canvas;
+    return tft;
+  }
+
+  // Push completed offscreen frame to LCD in a single burst (no tearing / no visible line)
+  void flush() {
+    if (!displayAvailable) return;
+    if (canvas != nullptr && canvas->getBuffer() != nullptr) {
+      tft.drawRGBBitmap(0, 0, canvas->getBuffer(), SCREEN_WIDTH, SCREEN_HEIGHT);
+    }
+  }
+
 public:
+  void markDirty() {
+    dirty = true;
+  }
+
   void init() {
     Serial.println("[LCD] Initializing Waveshare ST7789...");
 
@@ -227,9 +280,26 @@ public:
     SPI.begin(LCD_SCLK, -1, LCD_MOSI, LCD_CS);
 
     tft.init(LCD_NATIVE_WIDTH, LCD_NATIVE_HEIGHT);
-    tft.setRotation(1);  // 320 x 172 landscape
+    tft.setSPISpeed(40000000UL); // High-speed 40 MHz SPI to eliminate refresh latency
+    tft.setRotation(1);          // 320 x 172 landscape
     tft.setTextWrap(false);
     tft.fillScreen(ST77XX_BLACK);
+
+    // Allocate 320x172 16-bit double buffer canvas in SRAM (~107.5 KB)
+    // Eliminates scanline tearing, visible clearing lines, and element-by-element pop-in
+    canvas = new GFXcanvas16(SCREEN_WIDTH, SCREEN_HEIGHT);
+    if (canvas != nullptr && canvas->getBuffer() != nullptr) {
+      canvas->setTextWrap(false);
+      Serial.printf("[LCD] Double-buffering enabled (%dx%d, %u bytes)\n",
+                    SCREEN_WIDTH, SCREEN_HEIGHT,
+                    (unsigned int)(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint16_t)));
+    } else {
+      if (canvas) {
+        delete canvas;
+        canvas = nullptr;
+      }
+      Serial.println("[LCD] Warning: Canvas buffer allocation failed, falling back to direct rendering.");
+    }
 
     displayAvailable = true;
     Serial.printf("[LCD] Ready: %dx%d\n", tft.width(), tft.height());
@@ -239,75 +309,79 @@ public:
 
   void drawHeader(const char *title) {
     if (!displayAvailable) return;
+    Adafruit_GFX &g = gfx();
 
-    tft.fillRect(0, 0, SCREEN_WIDTH, 27, ST77XX_BLUE);
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(2);
-    tft.setCursor(8, 6);
-    tft.print(title);
+    g.fillRect(0, 0, SCREEN_WIDTH, 27, ST77XX_BLUE);
+    g.setTextColor(ST77XX_WHITE);
+    g.setTextSize(2);
+    g.setCursor(8, 6);
+    g.print(title);
 
-    tft.setTextSize(1);
+    g.setTextSize(1);
     if (deviceConnected) {
-      tft.fillCircle(284, 13, 5, ST77XX_GREEN);
-      tft.setCursor(294, 9);
-      tft.print("BLE");
+      g.fillCircle(284, 13, 5, ST77XX_GREEN);
+      g.setCursor(294, 9);
+      g.print("BLE");
     } else {
-      tft.drawCircle(284, 13, 5, ST77XX_WHITE);
-      tft.setCursor(294, 9);
-      tft.print("ADV");
+      g.drawCircle(284, 13, 5, ST77XX_WHITE);
+      g.setCursor(294, 9);
+      g.print("ADV");
     }
   }
 
   void showSplashScreen() {
     if (!displayAvailable) return;
+    Adafruit_GFX &g = gfx();
 
-    tft.fillScreen(ST77XX_BLACK);
-    tft.drawRoundRect(18, 18, 284, 136, 14, ST77XX_CYAN);
-    tft.drawRoundRect(22, 22, 276, 128, 12, ST77XX_BLUE);
+    g.fillScreen(ST77XX_BLACK);
+    g.drawRoundRect(18, 18, 284, 136, 14, ST77XX_CYAN);
+    g.drawRoundRect(22, 22, 276, 128, 12, ST77XX_BLUE);
 
     // Simple heart icon
-    tft.fillCircle(61, 66, 13, ST77XX_RED);
-    tft.fillCircle(82, 66, 13, ST77XX_RED);
-    tft.fillTriangle(49, 72, 94, 72, 72, 102, ST77XX_RED);
+    g.fillCircle(61, 66, 13, ST77XX_RED);
+    g.fillCircle(82, 66, 13, ST77XX_RED);
+    g.fillTriangle(49, 72, 94, 72, 72, 102, ST77XX_RED);
 
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(3);
-    tft.setCursor(111, 46);
-    tft.print("HEARTWARE");
+    g.setTextColor(ST77XX_WHITE);
+    g.setTextSize(3);
+    g.setCursor(111, 46);
+    g.print("HEARTWARE");
 
-    tft.setTextColor(ST77XX_CYAN);
-    tft.setTextSize(2);
-    tft.setCursor(111, 82);
-    tft.print("Smart Dispenser");
+    g.setTextColor(ST77XX_CYAN);
+    g.setTextSize(2);
+    g.setCursor(111, 82);
+    g.print("Smart Dispenser");
 
-    tft.setTextColor(ST77XX_GREEN);
-    tft.setTextSize(1);
-    tft.setCursor(111, 112);
-    tft.print("ESP32-C6 / BLE READY");
+    g.setTextColor(ST77XX_GREEN);
+    g.setTextSize(1);
+    g.setCursor(111, 112);
+    g.print("ESP32-C6 / BLE READY");
 
+    flush();
     delay(1400);
   }
 
   void showDispensing(int bottleId, const char *pillName, int step) {
     if (!displayAvailable) return;
+    Adafruit_GFX &g = gfx();
 
-    tft.fillScreen(ST77XX_BLACK);
+    g.fillScreen(ST77XX_BLACK);
 
-    tft.fillRect(0, 0, SCREEN_WIDTH, 34, ST77XX_RED);
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(2);
-    tft.setCursor(74, 9);
-    tft.print("DISPENSING");
+    g.fillRect(0, 0, SCREEN_WIDTH, 34, ST77XX_RED);
+    g.setTextColor(ST77XX_WHITE);
+    g.setTextSize(2);
+    g.setCursor(74, 9);
+    g.print("DISPENSING");
 
-    tft.setTextColor(ST77XX_YELLOW);
-    tft.setTextSize(3);
-    tft.setCursor(12, 48);
-    tft.printf("BOTTLE #%d", bottleId);
+    g.setTextColor(ST77XX_YELLOW);
+    g.setTextSize(3);
+    g.setCursor(12, 48);
+    g.printf("BOTTLE #%d", bottleId);
 
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(2);
-    tft.setCursor(12, 86);
-    tft.print(clipped(String(pillName), 22));
+    g.setTextColor(ST77XX_WHITE);
+    g.setTextSize(2);
+    g.setCursor(12, 86);
+    g.print(clipped(String(pillName), 22));
 
     // Progress bar
     const int barX = 12;
@@ -315,147 +389,159 @@ public:
     const int barW = 296;
     const int barH = 20;
 
-    tft.drawRoundRect(barX, barY, barW, barH, 5, ST77XX_WHITE);
+    g.drawRoundRect(barX, barY, barW, barH, 5, ST77XX_WHITE);
     int innerW = map(constrain(step, 0, 100), 0, 100, 0, barW - 6);
     if (innerW > 0) {
-      tft.fillRoundRect(barX + 3, barY + 3, innerW, barH - 6, 3, ST77XX_GREEN);
+      g.fillRoundRect(barX + 3, barY + 3, innerW, barH - 6, 3, ST77XX_GREEN);
     }
 
-    tft.setTextColor(ST77XX_CYAN);
-    tft.setTextSize(1);
-    tft.setCursor(12, 153);
+    g.setTextColor(ST77XX_CYAN);
+    g.setTextSize(1);
+    g.setCursor(12, 153);
     if (step < 50) {
-      tft.print("Actuating servo...");
+      g.print("Actuating servo...");
     } else if (step < 100) {
-      tft.print("Dropping medication...");
+      g.print("Dropping medication...");
     } else {
-      tft.print("Returning servo to rest...");
+      g.print("Returning servo to rest...");
     }
+
+    flush();
   }
 
   void showDispenseComplete(int bottleId, const char *pillName, int stockLeft) {
     if (!displayAvailable) return;
+    Adafruit_GFX &g = gfx();
 
-    tft.fillScreen(ST77XX_BLACK);
+    g.fillScreen(ST77XX_BLACK);
     drawHeader("DISPENSE SUCCESS");
 
     // Green check mark
-    tft.drawLine(20, 63, 34, 78, ST77XX_GREEN);
-    tft.drawLine(34, 78, 61, 48, ST77XX_GREEN);
-    tft.drawLine(21, 64, 34, 77, ST77XX_GREEN);
-    tft.drawLine(35, 77, 60, 49, ST77XX_GREEN);
+    g.drawLine(20, 63, 34, 78, ST77XX_GREEN);
+    g.drawLine(34, 78, 61, 48, ST77XX_GREEN);
+    g.drawLine(21, 64, 34, 77, ST77XX_GREEN);
+    g.drawLine(35, 77, 60, 49, ST77XX_GREEN);
 
-    tft.setTextColor(ST77XX_GREEN);
-    tft.setTextSize(3);
-    tft.setCursor(78, 48);
-    tft.printf("BOTTLE #%d OK", bottleId);
+    g.setTextColor(ST77XX_GREEN);
+    g.setTextSize(3);
+    g.setCursor(78, 48);
+    g.printf("BOTTLE #%d OK", bottleId);
 
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(2);
-    tft.setCursor(78, 84);
-    tft.print(clipped(String(pillName), 19));
+    g.setTextColor(ST77XX_WHITE);
+    g.setTextSize(2);
+    g.setCursor(78, 84);
+    g.print(clipped(String(pillName), 19));
 
-    tft.setTextColor(stockLeft <= 4 ? ST77XX_RED : ST77XX_CYAN);
-    tft.setCursor(78, 111);
-    tft.printf("Remaining: %d", stockLeft);
+    g.setTextColor(stockLeft <= 4 ? ST77XX_RED : ST77XX_CYAN);
+    g.setCursor(78, 111);
+    g.printf("Remaining: %d", stockLeft);
 
-    tft.fillRect(0, 146, SCREEN_WIDTH, 26, ST77XX_BLUE);
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(91, 155);
-    tft.print("TAKE WITH WATER");
+    g.fillRect(0, 146, SCREEN_WIDTH, 26, ST77XX_BLUE);
+    g.setTextColor(ST77XX_WHITE);
+    g.setTextSize(1);
+    g.setCursor(91, 155);
+    g.print("TAKE WITH WATER");
+
+    flush();
   }
 
   void showPageInventory() {
     if (!displayAvailable) return;
+    Adafruit_GFX &g = gfx();
 
-    tft.fillScreen(ST77XX_BLACK);
+    g.fillScreen(ST77XX_BLACK);
     drawHeader("HEARTWARE");
 
-    tft.setTextSize(1);
-    tft.setTextColor(ST77XX_CYAN);
-    tft.setCursor(10, 35);
-    tft.print("CHAMBER");
-    tft.setCursor(72, 35);
-    tft.print("MEDICATION");
-    tft.setCursor(260, 35);
-    tft.print("STOCK");
-    tft.drawLine(8, 47, 312, 47, ST77XX_BLUE);
+    g.setTextSize(1);
+    g.setTextColor(ST77XX_CYAN);
+    g.setCursor(10, 35);
+    g.print("CHAMBER");
+    g.setCursor(72, 35);
+    g.print("MEDICATION");
+    g.setCursor(260, 35);
+    g.print("STOCK");
+    g.drawLine(8, 47, 312, 47, ST77XX_BLUE);
 
     for (int i = 0; i < NUM_CHAMBERS; i++) {
       ChamberData &c = servoHandler.chambers[i];
       int y = 58 + (i * 31);
 
-      tft.setTextSize(2);
-      tft.setTextColor(ST77XX_YELLOW);
-      tft.setCursor(15, y);
-      tft.printf("#%d", c.id);
+      g.setTextSize(2);
+      g.setTextColor(ST77XX_YELLOW);
+      g.setCursor(15, y);
+      g.printf("#%d", c.id);
 
-      tft.setTextColor(ST77XX_WHITE);
-      tft.setCursor(72, y);
-      tft.print(clipped(c.pillName, 14));
+      g.setTextColor(ST77XX_WHITE);
+      g.setCursor(72, y);
+      g.print(clipped(c.pillName, 14));
 
       if (c.stock <= 4) {
-        tft.setTextColor(ST77XX_RED);
+        g.setTextColor(ST77XX_RED);
       } else {
-        tft.setTextColor(ST77XX_GREEN);
+        g.setTextColor(ST77XX_GREEN);
       }
-      tft.setCursor(267, y);
-      tft.printf("%d", c.stock);
+      g.setCursor(267, y);
+      g.printf("%d", c.stock);
     }
 
-    tft.setTextSize(1);
-    tft.setTextColor(ST77XX_CYAN);
-    tft.setCursor(10, 159);
-    tft.print("BLE commands: 1 / 2 / 3 / 123");
+    g.setTextSize(1);
+    g.setTextColor(ST77XX_CYAN);
+    g.setCursor(10, 159);
+    g.print("BLE commands: 1 / 2 / 3 / 123");
+
+    flush();
   }
 
   void showPageAnalytics() {
     if (!displayAvailable) return;
+    Adafruit_GFX &g = gfx();
 
-    tft.fillScreen(ST77XX_BLACK);
+    g.fillScreen(ST77XX_BLACK);
     drawHeader("DISPENSE ANALYTICS");
 
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(2);
-    tft.setCursor(14, 42);
-    tft.printf("Total dispensed: %lu", stats.totalDispensed);
+    g.setTextColor(ST77XX_WHITE);
+    g.setTextSize(2);
+    g.setCursor(14, 42);
+    g.printf("Total dispensed: %lu", stats.totalDispensed);
 
-    tft.setTextColor(ST77XX_CYAN);
-    tft.setCursor(14, 72);
-    tft.printf("B1:%d   B2:%d   B3:%d",
+    g.setTextColor(ST77XX_CYAN);
+    g.setCursor(14, 72);
+    g.printf("B1:%d   B2:%d   B3:%d",
                servoHandler.chambers[0].totalDispensed,
                servoHandler.chambers[1].totalDispensed,
                servoHandler.chambers[2].totalDispensed);
 
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(14, 112);
+    g.setTextColor(ST77XX_WHITE);
+    g.setTextSize(1);
+    g.setCursor(14, 112);
 
     if (stats.lastDispensedBottle > 0) {
       unsigned long elapsedSec = (millis() - stats.lastDispenseMillis) / 1000UL;
-      tft.printf("Last: Bottle #%d - %s", stats.lastDispensedBottle,
+      g.printf("Last: Bottle #%d - %s", stats.lastDispensedBottle,
                  clipped(stats.lastDispensedPill, 24).c_str());
-      tft.setCursor(14, 128);
+      g.setCursor(14, 128);
       if (elapsedSec < 60) {
-        tft.printf("Completed %lu sec ago", elapsedSec);
+        g.printf("Completed %lu sec ago", elapsedSec);
       } else {
-        tft.printf("Completed %lu min ago", elapsedSec / 60UL);
+        g.printf("Completed %lu min ago", elapsedSec / 60UL);
       }
     } else {
-      tft.print("Last dispense: none yet");
+      g.print("Last dispense: none yet");
     }
 
-    tft.fillRect(0, 149, SCREEN_WIDTH, 23, ST77XX_GREEN);
-    tft.setTextColor(ST77XX_BLACK);
-    tft.setCursor(105, 157);
-    tft.print("SYSTEM READY");
+    g.fillRect(0, 149, SCREEN_WIDTH, 23, ST77XX_GREEN);
+    g.setTextColor(ST77XX_BLACK);
+    g.setCursor(105, 157);
+    g.print("SYSTEM READY");
+
+    flush();
   }
 
   void showPageHardware() {
     if (!displayAvailable) return;
+    Adafruit_GFX &g = gfx();
 
-    tft.fillScreen(ST77XX_BLACK);
+    g.fillScreen(ST77XX_BLACK);
     drawHeader("SYSTEM TELEMETRY");
 
     uint32_t freeHeapKB = ESP.getFreeHeap() / 1024;
@@ -464,47 +550,57 @@ public:
     unsigned long m = (uptimeSec % 3600UL) / 60UL;
     unsigned long s = uptimeSec % 60UL;
 
-    tft.setTextSize(2);
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setCursor(16, 44);
-    tft.printf("Free RAM: %lu KB", (unsigned long)freeHeapKB);
+    g.setTextSize(2);
+    g.setTextColor(ST77XX_WHITE);
+    g.setCursor(16, 44);
+    g.printf("Free RAM: %lu KB", (unsigned long)freeHeapKB);
 
-    tft.setCursor(16, 72);
-    tft.printf("Uptime: %02lu:%02lu:%02lu", h, m, s);
+    g.setCursor(16, 72);
+    g.printf("Uptime: %02lu:%02lu:%02lu", h, m, s);
 
-    tft.setCursor(16, 100);
-    tft.printf("Battery: %d%%  %.2fV", stats.batteryPercent, stats.batteryVoltage);
+    g.setCursor(16, 100);
+    g.printf("Battery: %d%%  %.2fV", stats.batteryPercent, stats.batteryVoltage);
 
-    tft.setCursor(16, 128);
-    tft.setTextColor(deviceConnected ? ST77XX_GREEN : ST77XX_YELLOW);
-    tft.printf("BLE: %s", deviceConnected ? "CONNECTED" : "ADVERTISING");
+    g.setCursor(16, 128);
+    g.setTextColor(deviceConnected ? ST77XX_GREEN : ST77XX_YELLOW);
+    g.printf("BLE: %s", deviceConnected ? "CONNECTED" : "ADVERTISING");
 
-    tft.setTextSize(1);
-    tft.setTextColor(ST77XX_CYAN);
-    tft.setCursor(16, 156);
-    tft.print("Waveshare ESP32-C6-LCD-1.47 / ST7789");
+    g.setTextSize(1);
+    g.setTextColor(ST77XX_CYAN);
+    g.setCursor(16, 156);
+    g.print("Waveshare ESP32-C6-LCD-1.47 / ST7789");
+
+    flush();
   }
 
   void updateIdleLoop() {
     if (!displayAvailable) return;
 
     unsigned long now = millis();
+    bool pageChanged = false;
+
     if (now - lastPageSwitch >= PAGE_DURATION_MS) {
       lastPageSwitch = now;
       idlePage = (idlePage + 1) % 3;
+      pageChanged = true;
     }
 
     static int lastRenderedPage = -1;
     static bool lastBleState = false;
     static unsigned long lastRefresh = 0;
 
-    // Avoid redrawing the entire TFT every 50 ms.
-    if (idlePage == lastRenderedPage &&
-        deviceConnected == lastBleState &&
-        now - lastRefresh < 1000) {
+    bool bleChanged = (deviceConnected != lastBleState);
+
+    // Page 2 (Hardware Telemetry) has an uptime seconds counter, so refresh once per second.
+    // Static pages (Inventory and Analytics) only refresh on page transitions, BLE state changes,
+    // or when data is updated (markDirty).
+    bool telemetryTick = (idlePage == 2 && (now - lastRefresh >= 1000));
+
+    if (!pageChanged && !bleChanged && !dirty && !telemetryTick && (lastRenderedPage != -1)) {
       return;
     }
 
+    dirty = false;
     lastRenderedPage = idlePage;
     lastBleState = deviceConnected;
     lastRefresh = now;
@@ -539,16 +635,18 @@ void executeDispenseCycle() {
 
       chamber.active = true;
 
-      // Phase 1 - move to dispense angle
+      // Phase 1 - move to dispense angle across all candidate PWM servo pins
       displayManager.showDispensing(chamber.id, chamber.pillName.c_str(), 20);
-      chamber.servo.write(chamber.dispenseAngle);
-      delay(300);
+      driveAllServos(chamber.restAngle, chamber.dispenseAngle, 8);
+      pulseAllServoPins(chamber.dispenseAngle, 20);
 
       displayManager.showDispensing(chamber.id, chamber.pillName.c_str(), 65);
       delay(300);
 
-      // Phase 2 - return to rest
-      chamber.servo.write(chamber.restAngle);
+      // Phase 2 - return to rest across all candidate PWM servo pins
+      displayManager.showDispensing(chamber.id, chamber.pillName.c_str(), 90);
+      driveAllServos(chamber.dispenseAngle, chamber.restAngle, 8);
+      pulseAllServoPins(chamber.restAngle, 20);
       displayManager.showDispensing(chamber.id, chamber.pillName.c_str(), 100);
       delay(200);
 
@@ -584,6 +682,9 @@ void executeDispenseCycle() {
       }
     }
   }
+
+  // Ensure idle screen refreshes immediately with updated stock numbers
+  displayManager.markDirty();
 }
 
 // ============================================================
@@ -646,6 +747,7 @@ class ServoCallbacks : public BLECharacteristicCallbacks {
 
         if (id >= 1 && id <= NUM_CHAMBERS && medName.length() > 0) {
           servoHandler.setPillName(id, medName);
+          displayManager.markDirty();
           pCharacteristic->setValue("ACK:NAME_UPDATED");
         } else {
           pCharacteristic->setValue("ERR:BAD_NAME_COMMAND");
@@ -666,6 +768,7 @@ class ServoCallbacks : public BLECharacteristicCallbacks {
 
         if (id >= 1 && id <= NUM_CHAMBERS && count >= 0) {
           servoHandler.refill(id, count);
+          displayManager.markDirty();
           pCharacteristic->setValue("ACK:REFILLED");
         } else {
           pCharacteristic->setValue("ERR:BAD_REFILL_COMMAND");
