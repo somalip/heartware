@@ -5,17 +5,63 @@ import { UserRole } from '../types';
 import { IosSpinner } from '../components/IosSpinner';
 import { triggerHaptic } from '../utils/haptics';
 
+interface RememberedLogin {
+  email: string;
+  password?: string;
+  remember: boolean;
+}
+
+const REMEMBERED_LOGIN_KEY = 'heartware_remembered_login';
+
+const getSavedLogin = (): RememberedLogin | null => {
+  try {
+    const raw = localStorage.getItem(REMEMBERED_LOGIN_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
 export function Login() {
   const { login, register } = useAuth();
   const { showToast } = useToast();
 
+  const [savedLogin, setSavedLogin] = useState<RememberedLogin | null>(() => getSavedLogin());
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(() => savedLogin?.email ?? '');
+  const [password, setPassword] = useState(() => savedLogin?.password ?? '');
+  const [rememberLogin, setRememberLogin] = useState<boolean>(() => savedLogin?.remember ?? true);
   const [role, setRole] = useState<UserRole>('patient');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const handleToggleRemember = (checked: boolean) => {
+    triggerHaptic('selection');
+    setRememberLogin(checked);
+    if (!checked) {
+      try {
+        localStorage.removeItem(REMEMBERED_LOGIN_KEY);
+        setSavedLogin(null);
+      } catch {
+        // Ignore storage exceptions
+      }
+    }
+  };
+
+  const handleClearSaved = () => {
+    triggerHaptic('light');
+    setEmail('');
+    setPassword('');
+    setSavedLogin(null);
+    try {
+      localStorage.removeItem(REMEMBERED_LOGIN_KEY);
+    } catch {
+      // Ignore
+    }
+    showToast('Saved login details removed from cache', 'info');
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -28,6 +74,22 @@ export function Login() {
       triggerHaptic('warning');
       setError(err);
     } else {
+      try {
+        if (rememberLogin) {
+          const loginData: RememberedLogin = {
+            email: email.trim(),
+            password,
+            remember: true,
+          };
+          localStorage.setItem(REMEMBERED_LOGIN_KEY, JSON.stringify(loginData));
+          setSavedLogin(loginData);
+        } else {
+          localStorage.removeItem(REMEMBERED_LOGIN_KEY);
+          setSavedLogin(null);
+        }
+      } catch {
+        // Ignore storage exceptions
+      }
       triggerHaptic('success');
       showToast(mode === 'in' ? 'Signed in successfully' : 'Account created', 'success');
     }
@@ -67,6 +129,8 @@ export function Login() {
               <div className="ios-row">
                 <div className="ios-detail-label">Name</div>
                 <input
+                  id="login-name"
+                  name="name"
                   className="ios-input"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -80,12 +144,14 @@ export function Login() {
             <div className="ios-row">
               <div className="ios-detail-label">Email</div>
               <input
+                id="login-email"
+                name="email"
                 type="email"
                 className="ios-input"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
-                autoComplete="email"
+                autoComplete="username email"
                 required
               />
             </div>
@@ -93,6 +159,8 @@ export function Login() {
             <div className="ios-row">
               <div className="ios-detail-label">Password</div>
               <input
+                id="login-password"
+                name="password"
                 type="password"
                 className="ios-input"
                 value={password}
@@ -108,6 +176,8 @@ export function Login() {
               <div className="ios-row">
                 <div className="ios-detail-label">Role</div>
                 <select
+                  id="login-role"
+                  name="role"
                   className="ios-input"
                   value={role}
                   onChange={(e) => setRole(e.target.value as UserRole)}
@@ -118,7 +188,37 @@ export function Login() {
                 </select>
               </div>
             )}
+
+            <div className="ios-row">
+              <div className="ios-row-content">
+                <div className="ios-row-label">Remember login details</div>
+                <div className="ios-row-sublabel">
+                  {savedLogin?.email ? `Cached for ${savedLogin.email}` : 'Store credentials in browser cache'}
+                </div>
+              </div>
+              <label className="ios-switch" aria-label="Remember login details">
+                <input
+                  type="checkbox"
+                  checked={rememberLogin}
+                  onChange={(e) => handleToggleRemember(e.target.checked)}
+                />
+                <span className="ios-switch-slider" />
+              </label>
+            </div>
           </div>
+
+          {savedLogin && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px', padding: '0 4px' }}>
+              <button
+                type="button"
+                onClick={handleClearSaved}
+                className="ios-nav-action"
+                style={{ fontSize: '12px', color: 'var(--ios-red)' }}
+              >
+                Clear cached login
+              </button>
+            </div>
+          )}
 
           {error && (
             <div className="ios-form-error">

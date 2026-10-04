@@ -53,7 +53,8 @@ const normalize = (email: string) => email.trim().toLowerCase();
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(() => {
     const email = localStorage.getItem(SESSION_KEY);
-    return readAccounts().find((a) => a.email === email)?.profile ?? null;
+    if (!email) return null;
+    return readAccounts().find((a) => normalize(a.email) === normalize(email))?.profile ?? null;
   });
 
   const startSession = (profile: UserProfile) => {

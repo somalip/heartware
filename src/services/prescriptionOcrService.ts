@@ -644,7 +644,7 @@ Return ONLY pure JSON.`;
       // Strategy 2B: Firebase Vertex AI SDK (also strictly gemini-3.8-flash)
       if (app && !this.lastAiError) {
         try {
-          const { getVertexAI, getGenerativeModel } = await import('firebase/vertexai');
+          const { getVertexAI, getGenerativeModel } = await import(/* @vite-ignore */ 'firebase/vertexai');
           const vertexAI = getVertexAI(app);
           const vertexModel = getGenerativeModel(vertexAI, {
             model: 'gemini-3.8-flash',
@@ -689,7 +689,8 @@ Return ONLY pure JSON.`;
 
       // Attempt 1: Bundled npm tesseract.js worker
       try {
-        const { createWorker, PSM } = await import('tesseract.js');
+        const pkg = 'tesseract.js';
+        const { createWorker, PSM } = await import(/* @vite-ignore */ pkg);
         const worker = await createWorker('eng');
         let text = '';
         try {

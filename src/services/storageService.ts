@@ -7,7 +7,7 @@ const KEYS = {
   LOGS: 'heartware_logs',
 };
 
-const emptyBottle = (servoId: 1 | 2 | 3): ChamberConfig => ({
+const emptyBottle = (servoId: 1 | 2 | 3 | 4 = 1): ChamberConfig => ({
   servoId,
   medicationName: '',
   pillStrength: '',
@@ -22,8 +22,6 @@ const emptyBottle = (servoId: 1 | 2 | 3): ChamberConfig => ({
 
 export const INITIAL_CHAMBERS: ChamberConfig[] = [
   emptyBottle(1),
-  emptyBottle(2),
-  emptyBottle(3),
 ];
 
 export const INITIAL_SCHEDULES: MedicationSchedule[] = [];
@@ -69,12 +67,12 @@ export const storageService = {
   getChambers: () => {
     const raw = read<ChamberConfig[]>(KEYS.CHAMBERS, INITIAL_CHAMBERS);
     const valid = raw
-      .filter((c) => c.servoId >= 1 && c.servoId <= 3)
+      .filter((c) => c.servoId === 1)
       .map((c) => ({
         ...c,
         slotLabel: c.slotLabel?.startsWith('Slot') ? `Bottle ${c.servoId}` : c.slotLabel || `Bottle ${c.servoId}`,
       }));
-    if (valid.length === 3) return valid;
+    if (valid.length === 1) return valid;
     return INITIAL_CHAMBERS;
   },
   saveChambers: (v: ChamberConfig[]) => localStorage.setItem(KEYS.CHAMBERS, JSON.stringify(v)),
@@ -85,6 +83,10 @@ export const storageService = {
     const entry: DispenseLog = { ...log, id: `log-${Date.now()}` };
     localStorage.setItem(KEYS.LOGS, JSON.stringify([entry, ...this.getLogs()]));
     return entry;
+  },
+  deleteLog(id: string): void {
+    const filtered = this.getLogs().filter((l) => l.id !== id);
+    localStorage.setItem(KEYS.LOGS, JSON.stringify(filtered));
   },
   /** Clears device data only; accounts are kept. */
   resetDevice() {

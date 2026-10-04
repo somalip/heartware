@@ -1,7 +1,4 @@
-import { initializeApp } from 'firebase/app';
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Firebase configuration
 export const firebaseConfig = {
   apiKey: import.meta?.env?.VITE_FIREBASE_API_KEY || "AIzaSyCvGEriFqIMvNJ5pZ4blUAt1MvuqrBa59M",
   authDomain: import.meta?.env?.VITE_FIREBASE_AUTH_DOMAIN || "heartware-caea7.firebaseapp.com",
@@ -12,14 +9,7 @@ export const firebaseConfig = {
   measurementId: import.meta?.env?.VITE_FIREBASE_MEASUREMENT_ID || "G-5V6XXER82H"
 };
 
-// Initialize Firebase
-let appInstance: any = null;
-try {
-  appInstance = initializeApp(firebaseConfig);
-} catch {
-  // If already initialized or during build
-}
-export const app = appInstance;
+export const app: any = null;
 export const analytics: any = null;
 export const auth: any = null;
 export const db: any = null;

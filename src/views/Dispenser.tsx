@@ -8,6 +8,7 @@ import { IosSpinner } from '../components/IosSpinner';
 import { DailyIntakeSummaryCard } from '../components/DailyIntakeSummaryCard';
 import { CrossIntakeAlertModal } from '../components/CrossIntakeAlertModal';
 import { PrescriptionScannerModal } from '../components/PrescriptionScannerModal';
+import { AiAssistantModal } from '../components/AiAssistantModal';
 import { medicationSafetyService } from '../services/medicationSafetyService';
 import { searchMedications, calculateAutomaticDailyLimit, findBestMatch } from '../data/medicationDatabase';
 import { triggerHaptic } from '../utils/haptics';
@@ -26,6 +27,7 @@ export function Dispenser() {
   const [editingChamber, setEditingChamber] = useState<ChamberConfig | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [scannerSlotId, setScannerSlotId] = useState<1 | 2 | 3 | 4>(1);
+  const [showAiAssistant, setShowAiAssistant] = useState(false);
   const [safetyAlert, setSafetyAlert] = useState<{
     evaluation: DispenseSafetyEvaluation;
     chamber: ChamberConfig;
@@ -114,7 +116,7 @@ export function Dispenser() {
     }
   };
 
-  const slotColors = ['#007aff', '#34c759', '#af52de'];
+  const slotColors = ['#007aff'];
 
   return (
     <>
@@ -122,21 +124,43 @@ export function Dispenser() {
         <div>
           <h1 className="ios-large-title">Dispenser</h1>
         </div>
-        <button
-          type="button"
-          className="ios-scan-header-btn"
-          onClick={() => {
-            triggerHaptic('light');
-            setShowScanner(true);
-          }}
-          title="Scan Prescription Label"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-            <circle cx="12" cy="13" r="4" />
-          </svg>
-          <span>Scan Rx</span>
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            type="button"
+            className="ios-scan-header-btn"
+            style={{
+              background: 'linear-gradient(135deg, var(--ios-blue) 0%, #5856d6 100%)',
+              color: '#ffffff',
+              boxShadow: '0 2px 8px rgba(0, 122, 255, 0.25)',
+            }}
+            onClick={() => {
+              triggerHaptic('light');
+              setShowAiAssistant(true);
+            }}
+            title="Heartware Clinical AI Assistant (Gemini Tool Calling)"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            </svg>
+            <span>Heartware AI</span>
+          </button>
+
+          <button
+            type="button"
+            className="ios-scan-header-btn"
+            onClick={() => {
+              triggerHaptic('light');
+              setShowScanner(true);
+            }}
+            title="Scan Prescription Label"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            <span>Scan Rx</span>
+          </button>
+        </div>
       </div>
 
       {/* Responsive Grid: 2 Columns on Desktop, Single Column on Mobile */}
@@ -189,9 +213,9 @@ export function Dispenser() {
             </div>
           </div>
 
-          {/* Medication Bottles Group */}
+          {/* Medication Bottle Group */}
           <div className="ios-section">
-            <div className="ios-section-header">Bottles</div>
+            <div className="ios-section-header">Bottle</div>
             <div className="ios-list">
               {chambers.map((c, i) => {
                 const isConfigured = Boolean(c.medicationName.trim());
@@ -394,6 +418,7 @@ export function Dispenser() {
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
@@ -432,6 +457,11 @@ export function Dispenser() {
           }}
           onClose={() => setShowScanner(false)}
         />
+      )}
+
+      {/* Heartware Clinical AI Tool Calling Assistant Modal */}
+      {showAiAssistant && (
+        <AiAssistantModal onClose={() => setShowAiAssistant(false)} />
       )}
     </>
   );

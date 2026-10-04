@@ -67,10 +67,10 @@ export interface MedicationSchedule {
 export interface DispenseLog {
   id: string;
   timestamp: string;
-  chamberId: 1 | 2 | 3 | 4;
+  chamberId?: 1 | 2 | 3 | 4 | 0;
   medicationName: string;
   status: 'success' | 'missed' | 'manual_override' | 'jammed';
-  dispensedBy: 'scheduled_auto' | 'app_trigger' | 'hardware_button' | 'manual_override';
+  dispensedBy: 'scheduled_auto' | 'app_trigger' | 'hardware_button' | 'manual_override' | 'manual_entry';
   notes?: string;
   activeIngredients?: ActiveIngredient[];
   pillsDispensed?: number;

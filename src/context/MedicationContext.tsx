@@ -37,6 +37,15 @@ interface MedicationContextType {
     prescribedBy: string;
   }) => void;
   calculateAdherenceRate: () => number;
+  logManualIntake: (data: {
+    medicationName: string;
+    pillStrength?: string;
+    pillsDispensed: number;
+    timestamp?: string;
+    notes?: string;
+    chamberId?: 1 | 2 | 3 | 4 | 0;
+  }) => DispenseLog;
+  deleteLog: (id: string) => void;
 }
 
 const MedicationContext = createContext<MedicationContextType | undefined>(undefined);
@@ -329,6 +338,59 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return Math.round((successes / logs.length) * 100);
   };
 
+  const logManualIntake = (data: {
+    medicationName: string;
+    pillStrength?: string;
+    pillsDispensed: number;
+    timestamp?: string;
+    notes?: string;
+    chamberId?: 1 | 2 | 3 | 4 | 0;
+  }): DispenseLog => {
+    // If associated with a chamber, or resolve ingredients from database
+    const chamber = data.chamberId ? chambers.find(c => c.servoId === data.chamberId) : undefined;
+    const matched = findBestMatch(data.medicationName);
+    const ingredients = chamber?.activeIngredients?.length
+      ? chamber.activeIngredients
+      : matched?.activeIngredients || [];
+
+    const newLog = storageService.addLog({
+      timestamp: data.timestamp || new Date().toISOString(),
+      chamberId: data.chamberId ?? 0,
+      medicationName: data.medicationName,
+      status: 'success',
+      dispensedBy: 'manual_entry',
+      notes: data.notes || (data.pillStrength ? `Strength: ${data.pillStrength}` : undefined),
+      activeIngredients: ingredients,
+      pillsDispensed: data.pillsDispensed || 1,
+    });
+
+    setLogs(prev => [newLog, ...prev]);
+
+    // If logged against a dispenser chamber and currentCount > 0, decrement inventory
+    if (data.chamberId && data.chamberId >= 1 && data.chamberId <= 4) {
+      setChambers(prev =>
+        prev.map(c => {
+          if (c.servoId === data.chamberId) {
+            const nextCount = Math.max(0, c.currentCount - (data.pillsDispensed || 1));
+            return {
+              ...c,
+              currentCount: nextCount,
+              status: nextCount === 0 ? 'empty' : nextCount <= 4 ? 'low' : 'ready',
+            };
+          }
+          return c;
+        })
+      );
+    }
+
+    return newLog;
+  };
+
+  const deleteLog = (id: string) => {
+    storageService.deleteLog(id);
+    setLogs(prev => prev.filter(l => l.id !== id));
+  };
+
   return (
     <MedicationContext.Provider
       value={{
@@ -343,7 +405,9 @@ export const MedicationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         dispenseNow,
         dispenseChain,
         applyPrescriptionScan,
-        calculateAdherenceRate
+        calculateAdherenceRate,
+        logManualIntake,
+        deleteLog,
       }}
     >
       {children}

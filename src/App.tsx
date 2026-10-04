@@ -9,14 +9,13 @@ import { Login } from './views/Login';
 import { Dispenser } from './views/Dispenser';
 import { Schedule } from './views/Schedule';
 import { History } from './views/History';
-import { Care } from './views/Care';
 import { Account } from './views/Account';
+import { AiAssistantModal } from './components/AiAssistantModal';
 import { triggerHaptic } from './utils/haptics';
 
 const TABS = [
   ['dispenser', 'Dispenser'],
   ['schedule', 'Schedule'],
-  ['care', 'Care'],
   ['history', 'History'],
   ['account', 'Settings'],
 ] as const;
@@ -56,20 +55,6 @@ function TabIcon({ tab, active }: { tab: Tab; active: boolean }) {
     );
   }
 
-  if (tab === 'care') {
-    return active ? (
-      <svg className="ios-tab-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <rect x="9" y="3" width="6" height="18" rx="2" />
-        <rect x="3" y="9" width="18" height="6" rx="2" />
-      </svg>
-    ) : (
-      <svg className="ios-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <rect x="9" y="3" width="6" height="18" rx="2" />
-        <rect x="3" y="9" width="18" height="6" rx="2" />
-      </svg>
-    );
-  }
-
   if (tab === 'history') {
     return active ? (
       <svg className="ios-tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -102,6 +87,7 @@ function TabIcon({ tab, active }: { tab: Tab; active: boolean }) {
 function Shell() {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('dispenser');
+  const [showAiModal, setShowAiModal] = useState(false);
   const { schedules, chambers } = useMedication();
   const { state: hwState } = useHardware();
   const [isScrolled, setIsScrolled] = useState(false);
@@ -190,6 +176,28 @@ function Shell() {
               </button>
             );
           })}
+
+          {/* Heartware Clinical AI Desktop Action */}
+          <button
+            type="button"
+            className="desktop-nav-item"
+            style={{
+              marginTop: '10px',
+              background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.12) 0%, rgba(88, 86, 214, 0.12) 100%)',
+              color: 'var(--ios-blue)',
+              borderColor: 'rgba(0, 122, 255, 0.3)',
+              fontWeight: 600,
+            }}
+            onClick={() => {
+              triggerHaptic('light');
+              setShowAiModal(true);
+            }}
+          >
+            <svg className="ios-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            </svg>
+            <span>Heartware AI</span>
+          </button>
         </nav>
 
         {/* User Profile Footer */}
@@ -220,10 +228,29 @@ function Shell() {
         <main className="ios-screen" key={tab}>
           {tab === 'dispenser' && <Dispenser />}
           {tab === 'schedule' && <Schedule />}
-          {tab === 'care' && <Care goToAccount={() => handleTabSelect('account')} />}
           {tab === 'history' && <History />}
           {tab === 'account' && <Account />}
         </main>
+
+        {/* Floating AI Tool Calling Assistant Button on Mobile */}
+        <button
+          type="button"
+          className="ios-floating-ai-fab"
+          onClick={() => {
+            triggerHaptic('medium');
+            setShowAiModal(true);
+          }}
+          title="Heartware Clinical AI (Gemini Tool Calling)"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+          </svg>
+        </button>
+
+        {/* Global Heartware Clinical AI Tool Calling Assistant Modal */}
+        {showAiModal && (
+          <AiAssistantModal onClose={() => setShowAiModal(false)} />
+        )}
 
         {/* iOS Frosted Bottom Tab Bar (Mobile) */}
         <nav className="ios-tab-bar" aria-label="Main Navigation">

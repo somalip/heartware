@@ -1,16 +1,15 @@
 # Heartware
 
-A minimal PWA for an automatic medication dispenser: ESP32, four servos (one per slot), and a small display.
+A minimal PWA for an automatic medication dispenser: ESP32, single servo bottle dispenser, and a small display.
 
 Theme: **Shaping Society** — low-cost hardware and an offline-capable app to make medication adherence accessible.
 
 ## What works
 
 - Sign in / create account (stored locally on the device, passwords SHA-256 hashed)
-- Four slots: dispense, refill, edit medication / capacity / servo angle
+- Single bottle dispenser: dispense, refill, edit medication / capacity / servo angle
 - Dose schedule with next-dose display
 - Dispense history with JSON export
-- Emergency contact, call links, emergency slot (slot 4)
 - Installable and works offline (service worker, production build only)
 
 ## Not yet real

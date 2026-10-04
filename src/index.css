@@ -1931,7 +1931,6 @@ html, body {
 
 /* Default Mobile Behavior for New Grid Wrappers */
 .dispenser-desktop-grid,
-.care-desktop-grid,
 .settings-desktop-grid {
   display: flex;
   flex-direction: column;
@@ -2320,13 +2319,6 @@ html, body {
     flex-direction: column;
   }
 
-  /* Care: 2 Columns (Immediate Emergency vs Community Aid) */
-  .care-desktop-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 28px;
-    align-items: start;
-  }
 
   /* Schedule Cards: Responsive Multi-Column */
   .schedule-cards-grid {
@@ -2463,6 +2455,113 @@ html, body { letter-spacing: 0; }
   .ios-btn-primary { color: #0d1110; }
 }
 .ios-nav-action { font-size: 15px; font-weight: 500; }
+
+/* Floating Clinical AI Tool Calling FAB */
+.ios-floating-ai-fab {
+  position: fixed;
+  bottom: 84px;
+  right: 20px;
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
+  background: linear-gradient(135deg, var(--ios-blue) 0%, #5856d6 100%);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 99;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ios-floating-ai-fab:active {
+  transform: scale(0.92);
+}
+@media (min-width: 840px) {
+  .ios-floating-ai-fab {
+    display: none;
+  }
+}
+
+/* History Search Bar */
+.ios-search-container {
+  margin-bottom: 14px;
+}
+.ios-search-bar {
+  display: flex;
+  align-items: center;
+  background-color: var(--ios-fill);
+  border-radius: 10px;
+  padding: 8px 12px;
+  gap: 8px;
+}
+.ios-search-icon {
+  color: var(--ios-tertiary);
+  flex-shrink: 0;
+}
+.ios-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--ios-label);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+}
+.ios-search-input::placeholder {
+  color: var(--ios-tertiary);
+}
+.ios-search-clear-btn {
+  background: var(--ios-tertiary);
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  font-size: 11px;
+}
+
+/* Manual Log action button in header */
+.ios-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ios-log-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.ios-delete-row-btn {
+  background: transparent;
+  border: none;
+  color: var(--ios-secondary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background-color 0.15s;
+}
+.ios-delete-row-btn:hover {
+  color: var(--ios-red);
+  background-color: rgba(255, 59, 48, 0.1);
+}
 
 
 

@@ -98,10 +98,9 @@ export const medicationSafetyService = {
     > = {};
 
     for (const log of recentLogs) {
-      const chamber = configuredChambers.find((c) => c.servoId === log.chamberId);
-      if (!chamber) continue;
+      const chamber = log.chamberId ? chambers.find((c) => c.servoId === log.chamberId) : undefined;
 
-      let ingredients = log.activeIngredients || chamber.activeIngredients;
+      let ingredients = log.activeIngredients || chamber?.activeIngredients;
 
       if (!ingredients || ingredients.length === 0) {
         const match = findBestMatch(log.medicationName);
@@ -109,23 +108,26 @@ export const medicationSafetyService = {
       }
 
       if (ingredients && ingredients.length > 0) {
+        const pills = log.pillsDispensed || 1;
         for (const ing of ingredients) {
           const key = normalizeIngredientName(ing.name);
           if (!intakeMap[key]) {
             intakeMap[key] = { totalMg: 0, slots: {} };
           }
-          intakeMap[key].totalMg += ing.amountMg;
+          const doseMg = ing.amountMg * pills;
+          intakeMap[key].totalMg += doseMg;
 
-          if (!intakeMap[key].slots[log.chamberId]) {
-            intakeMap[key].slots[log.chamberId] = {
-              servoId: log.chamberId,
+          const slotKey = log.chamberId || 0;
+          if (!intakeMap[key].slots[slotKey]) {
+            intakeMap[key].slots[slotKey] = {
+              servoId: (log.chamberId || 1) as 1 | 2 | 3 | 4,
               medicationName: log.medicationName,
               amountMg: 0,
               doseCount: 0,
             };
           }
-          intakeMap[key].slots[log.chamberId].amountMg += ing.amountMg;
-          intakeMap[key].slots[log.chamberId].doseCount += 1;
+          intakeMap[key].slots[slotKey].amountMg += doseMg;
+          intakeMap[key].slots[slotKey].doseCount += pills;
         }
       }
     }

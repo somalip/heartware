@@ -267,7 +267,7 @@ class HardwareManager {
       this.state.isReading = true;
       this.notify();
       await new Promise(r => setTimeout(r, 200));
-      const simulatedData = `STATUS:OK;TEMP:22.4C;BAT:95%;BOTTLES:3_READY`;
+      const simulatedData = `STATUS:OK;TEMP:22.4C;BAT:95%;BOTTLES:1_READY`;
       this.handleIncomingValue(simulatedData, 'read');
       this.state.isReading = false;
       this.notify();
@@ -386,7 +386,7 @@ class HardwareManager {
       } else if (value === 'PING') {
         simulatedAck = 'PONG (ACK:PING)';
       } else if (value === 'STATUS') {
-        simulatedAck = 'STATUS:OK;BAT:98%;BOTTLES:3_READY';
+        simulatedAck = 'STATUS:OK;BAT:98%;BOTTLES:1_READY';
       } else if (value.startsWith('DISPENSE:')) {
         const parts = value.split(':');
         const slot = parts[1] || '1';
@@ -506,7 +506,7 @@ class HardwareManager {
 
     setTimeout(() => {
       this.state.oledText.line1 = "HEARTWARE v2.4";
-      this.state.oledText.line2 = "READY: 3 BOTTLES OK";
+      this.state.oledText.line2 = "READY: 1 BOTTLE OK";
       this.state.oledText.line3 = "NEXT: SCHEDULED AUTO";
       this.state.oledText.line4 = "SYSTEM NOMINAL";
       this.notify();
@@ -564,7 +564,7 @@ class HardwareManager {
 
     setTimeout(() => {
       this.state.oledText.line1 = "HEARTWARE v2.4";
-      this.state.oledText.line2 = "READY: 3 BOTTLES OK";
+      this.state.oledText.line2 = "READY: 1 BOTTLE OK";
       this.state.oledText.line3 = "NEXT: SCHEDULED AUTO";
       this.state.oledText.line4 = "SYSTEM NOMINAL";
       this.notify();

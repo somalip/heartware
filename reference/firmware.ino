@@ -8,6 +8,7 @@ BLEServer *pServer = NULL;
 BLECharacteristic *pServoCharacteristic = NULL;
 bool deviceConnected = false;
 
+
 #define SERVICE_UUID "41200547-118c-4580-926f-6380e3a521b5"
 #define CHARATERISTIC_UUID "2a75981f-0e72-4bb1-943b-5d568704b20a"
 
@@ -19,43 +20,37 @@ struct PillData {
 
 class ServoHandler {
   public:
-    PillData pillData[3];
+    PillData pillData[1];
     Servo s1;
-    Servo s2;
-    Servo s3;
 
     ServoHandler() {
-      for(int i = 0; i < 3; i++) {
-        this->pillData[i].requests = 0;
-        //this->pillData[i].servo.attach(5);
-        this->pillData[i].active = false;
-        s1.attach(5);
-        s2.attach(6);
-        s3.attach(7);
-        Serial.println("init servos");
-      }
+      this->pillData[0].requests = 0;
+      this->pillData[0].active = false;
+      s1.attach(5);
+      Serial.println("init servo");
+    }
+
+    void init() {
+      this->pillData[0].requests = 0;
+      this->pillData[0].active = false;
+      s1.attach(5);
+      Serial.println("init servo");
     }
 
     void sendRequest(int pill) {
-      pillData[pill].requests += 1;
+      this->pillData[0].requests += 1;
     }
 
     void dispense() {
-      for(int i = 0; i < 3; i++) {
-        if(!this->pillData[i].active && this->pillData[i].requests > 0) {
-          this->pillData[i].active = true;
-          //this->pillData[i].servo.write(90);
-          s1.write(90);
-        }
+      if(!this->pillData[0].active && this->pillData[0].requests > 0) {
+        this->pillData[0].active = true;
+        s1.write(90);
       }
       delay(100);
-      for(int i = 0; i < 3; i++) {
-        if(this->pillData[i].active && this->pillData[i].requests > 0) {
-          //this->pillData[i].servo.write(-37);
-          this->pillData[i].active = false;
-          this->pillData[i].requests-=1;
-          s1.write(0);
-        }
+      if(this->pillData[0].active && this->pillData[0].requests > 0) {
+        this->pillData[0].active = false;
+        this->pillData[0].requests -= 1;
+        s1.write(0);
       }
     }
 
@@ -64,10 +59,11 @@ class ServoHandler {
     }
 
     bool requestWaiting() {
-      return (this->pillData[0].requests > 0 || this->pillData[1].requests > 0 || this->pillData[2].requests > 0);
+      return (this->pillData[0].requests > 0);
     }
 };
 
+ServoHandler servoHandler;
 
 class ServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *pServer) {
@@ -82,7 +78,7 @@ class ServerCallbacks : public BLEServerCallbacks {
   }
 };
 
-ServoHandler servoHandler();
+
 
 
 class ServoCallbacks : public BLECharacteristicCallbacks {
@@ -104,9 +100,8 @@ class ServoCallbacks : public BLECharacteristicCallbacks {
 Servo test;
 
 void setup() {
-  
-  ServoHandler();
   // put your setup code here, to run once:
+  
   Serial.begin(115200);
   Serial.println("starting BLE");
 
@@ -132,7 +127,8 @@ void setup() {
   Serial.println("init done");
   
   test.attach(4);
-  servoHandler();
+
+  servoHandler.init();
   
   //Serial.println(test.attached());
 }
